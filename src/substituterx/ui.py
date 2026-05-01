@@ -1,17 +1,25 @@
 """Streamlit caregiver UI. Demo-grade only.
 
-Run: streamlit run src/substituterx/ui.py
+Run from the project root: streamlit run src/substituterx/ui.py
 """
 from __future__ import annotations
 
-import streamlit as st
+import sys
+from pathlib import Path
 
-from .agents.orchestrator import Orchestrator
-from .audit_log import AuditLog
-from .kg import KGStore
-from .models import BottleLabel, MAREntry
-from .provider import get_provider
-from .residents import ResidentStore
+# Streamlit runs this file as __main__, not as a package member, so relative imports
+# fail. Add the project src/ dir to sys.path and use absolute imports.
+_SRC = Path(__file__).resolve().parent.parent
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+import streamlit as st
+from substituterx.agents.orchestrator import Orchestrator
+from substituterx.audit_log import AuditLog
+from substituterx.kg import KGStore
+from substituterx.models import BottleLabel, MAREntry
+from substituterx.provider import get_provider
+from substituterx.residents import ResidentStore
 
 
 @st.cache_resource
