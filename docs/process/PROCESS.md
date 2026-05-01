@@ -204,9 +204,56 @@ These are scoped out **on purpose** — the prototype is an architectural proof,
 - Build the Ollama provider before the Anthropic provider. The credit-wall pivot was avoidable with two minutes of upfront thinking.
 - Write the eval cases *first*, not after the build. The asymmetric bar would have driven KG-edge selection more cleanly.
 - Use a graph DB (Kùzu or Neo4j-lite) from the start. DuckDB worked for ~30 edges; at 50K edges (full PrimeKG diabetes subset) it would have wanted a graph index.
-- Move resident-context lookup behind an interface from day one. The the pharmacy↔facility comms channel mock is the integration point and should be a protocol, not a concrete class.
+- Move resident-context lookup behind an interface from day one. The pharmacy↔facility comms channel mock is the integration point and should be a protocol, not a concrete class.
 
 These are the kind of things you say in the post-mortem. They are not what we say to the customer. The prototype shipped on schedule, passes the asymmetric eval bar, and is reproducible from a `git clone` + `uv sync`.
+
+## 11. Post-build code-quality pass
+
+After the eval bar was met and the demo was wired, the codebase was put through a five-tool static-analysis sweep — the Python equivalent of the [Fallow](https://github.com/fallow-rs/fallow) treatment for TS/JS — to make sure what got pushed to GitHub was tidy enough for an external reviewer to land on without flinching.
+
+| Tool | Role | Result |
+|---|---|---|
+| `ruff` (all default rules, `line-length=120`) | Lint, unused imports/vars, stale-noqa | **All checks passed** |
+| `vulture` (`--min-confidence 70`) | Dead functions, classes, attrs, methods | **No dead code** |
+| `deptry` | Unused / missing / transitive deps in `pyproject.toml` | **No dependency issues** |
+| `radon mi` | Maintainability index per file | **A-rated across all files** (40–100 range) |
+| `radon cc` | Cyclomatic complexity per block | 3 D-rated blocks **kept by design** (see below) |
+| Eval gate | Asymmetric red-team bar | **11/11 mock pass** preserved through the cleanup |
+
+### What got cleaned
+
+- Removed unused `AnthropicProvider` import in `orchestrator.py`.
+- Removed dead `lower = user.lower()` in `provider.py::MockProvider.call_json`.
+- Split a multi-import (`E401`), an inline-semicolon (`E702`), a lambda assignment (`E731`); renamed ambiguous `l` (`E741`).
+- Auto-removed 7 stale `# noqa` directives (`RUF100`).
+- Trimmed `pyproject.toml`: dropped `openai`, `pandas`, `python-dotenv`, `structlog` (precautionary deps that no code actually imported); promoted `streamlit` to a `[ui]` optional extra; promoted `deptry` to `[dev]` extra.
+- Configured `tool.deptry.per_rule_ignores` for tools used as CLI / runner / linter (`uvicorn`, `pytest`, `ruff`, `mypy`, `deptry`) — intentionally not imported.
+- Added `tool.ruff.lint.per-file-ignores` for the two `sys.path`-before-import files (`ui.py`, `tests/eval/run_eval.py`) and the agent files where prompts naturally exceed 120 chars.
+
+### What was kept on purpose
+
+The cyclomatic complexity scan flagged three D-rated blocks. Each is workflow orchestration, not algorithmic code — splitting would create more files than insight:
+
+| Location | CC | Why kept inline |
+|---|---|---|
+| `agents/validator.py::_eval_constraint` | D (29) | Dispatch over constraint types; the table-shape is the readability win |
+| `agents/orchestrator.py::Orchestrator.explain` | D (28) | The 4-agent loop + ingredient-class hop + abstain branches; flat is easier to trace |
+| `agents/orchestrator.py::_decide` | C (20) | Decision-rule cascade (red flags → equivalent → therapeutic → abstain) |
+
+This is a deliberate trade-off and worth flagging to a reviewer: *don't refactor these without first asking whether the resulting helper functions add real value beyond a CC number.*
+
+### Reproducibility
+
+```bash
+uvx ruff@latest check src tests
+uvx vulture --min-confidence 70 src tests
+uvx deptry .
+uvx radon mi src tests -s
+.venv/bin/python -m tests.eval.run_eval --mode mock
+```
+
+All five run cleanly from a fresh clone in under 10 seconds total. The asymmetric eval gate is the load-bearing one — if it ever turns red, the build is broken regardless of what the lint tools say.
 
 ---
 

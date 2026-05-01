@@ -5,6 +5,10 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org)
 [![Eval](https://img.shields.io/badge/eval-11%2F11-brightgreen.svg)](docs/process/EVAL_RESULTS_MOCK.md)
+[![ruff](https://img.shields.io/badge/ruff-clean-brightgreen.svg)](https://docs.astral.sh/ruff/)
+[![vulture](https://img.shields.io/badge/vulture-clean-brightgreen.svg)](https://github.com/jendrikseipp/vulture)
+[![deptry](https://img.shields.io/badge/deptry-clean-brightgreen.svg)](https://deptry.com)
+[![radon MI](https://img.shields.io/badge/radon%20MI-A-brightgreen.svg)](https://radon.readthedocs.io)
 
 ## What this is
 
@@ -113,6 +117,20 @@ The bundled seed (~22 drugs, ~13 edges, ~6 residents) is hand-curated to cover t
 
 [MIT](LICENSE), with a clinical disclaimer. This is a research prototype; do not use for actual substitution decisions.
 
+## Code quality
+
+After the eval bar was met, the codebase was put through a five-tool static-analysis sweep:
+
+```bash
+uvx ruff@latest check src tests       # lint, unused imports/vars, stale-noqa
+uvx vulture --min-confidence 70 src tests   # dead funcs/classes/attrs
+uvx deptry .                          # unused / missing / transitive deps
+uvx radon mi src tests -s             # maintainability index
+.venv/bin/python -m tests.eval.run_eval --mode mock   # red-team eval gate
+```
+
+Result: **all clean.** ruff passes, vulture clean, deptry clean, every file A-rated for maintainability, eval 11/11. See [`docs/process/PROCESS.md` §11](docs/process/PROCESS.md) for the full cleanup notes including which D-rated cyclomatic blocks were kept on purpose and why.
+
 ## Process apparatus
 
-This project was built using a documented multi-agent workflow under Claude Code. The full apparatus — orchestrator prompts, sub-agent transcripts, commit trailers, eval traces — is captured in [`docs/process/`](docs/process/). That apparatus is the deliverable.
+This project was built using a documented multi-agent workflow under Claude Code. The full apparatus — orchestrator prompts, sub-agent transcripts, commit trailers, eval traces, post-build code-quality sweep — is captured in [`docs/process/`](docs/process/). That apparatus is the deliverable.
