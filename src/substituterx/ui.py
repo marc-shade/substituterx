@@ -7,8 +7,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Streamlit runs this file as __main__, not as a package member, so relative imports
-# fail. Add the project src/ dir to sys.path and use absolute imports.
 _SRC = Path(__file__).resolve().parent.parent
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -27,10 +25,16 @@ def get_orchestrator():
     kg = KGStore()
     kg.load_seed()
     residents = ResidentStore()
-    return Orchestrator(kg, residents, get_provider(), AuditLog()), residents
+    orch = Orchestrator(kg, residents, get_provider(), AuditLog())
+    model_assignment = {
+        "reasoner": getattr(orch.reasoner.provider, "model", "?"),
+        "validator": getattr(orch.validator.provider, "model", "?"),
+        "auditor": getattr(orch.auditor.provider, "model", "?"),
+    }
+    return orch, residents, model_assignment
 
 
-orch, residents = get_orchestrator()
+orch, residents, MODEL_ASSIGNMENT = get_orchestrator()
 
 
 st.set_page_config(page_title="SubstituteRx", page_icon="💊", layout="wide")
@@ -41,6 +45,12 @@ st.warning(
     "prescriber consultation. Always verify against the current MAR and call your "
     "dispensing pharmacy with any discrepancy. **Synthetic data — for demonstration only.**"
 )
+
+with st.sidebar:
+    st.subheader("Agent model assignment")
+    for role, model in MODEL_ASSIGNMENT.items():
+        st.markdown(f"- **{role}** &nbsp; `{model}`")
+    st.caption("Per-agent overrides via `SUBSTITUTERX_MODEL_<ROLE>` env vars.")
 
 with st.form("reconciliation"):
     col1, col2 = st.columns(2)
@@ -54,12 +64,35 @@ with st.form("reconciliation"):
     submitted = st.form_submit_button("Reconcile", type="primary")
 
 if submitted:
-    with st.spinner("Reasoner → Validator → Auditor..."):
-        resp = orch.explain(
-            BottleLabel(label_text=bottle_text),
-            MAREntry(label_text=mar_text),
-            resident_id,
-        )
+    # Per-agent live progress with st.status
+    progress_box = st.status("Running pipeline…", expanded=True)
+    stage_lines: list[str] = []
+
+    LABELS = {
+        "begin": "▸ Orchestrator starting",
+        "resolve": "▸ Resolving RxCUIs from labels",
+        "context_extractor": "▸ Loading resident context",
+        "reasoner": "▸ Reasoner",
+        "validator": "▸ Validator (KG-grounded constraint evaluation)",
+        "auditor": "▸ Auditor (parametric-leakage scan)",
+        "decide": "▸ Decision logic",
+    }
+
+    def progress_cb(stage: str, detail: str):
+        label = LABELS.get(stage, f"▸ {stage}")
+        line = label + (f" — `{detail}`" if detail else "")
+        stage_lines.append(line)
+        progress_box.update(label=line)
+        progress_box.write(line)
+
+    resp = orch.explain(
+        BottleLabel(label_text=bottle_text),
+        MAREntry(label_text=mar_text),
+        resident_id,
+        progress=progress_cb,
+    )
+    progress_box.update(state="complete", label=f"Pipeline complete in {resp.latency_ms} ms",
+                        expanded=False)
 
     color = {"equivalent": "green", "discrepancy": "red", "abstain": "orange"}[resp.verdict]
     st.markdown(f"## :{color}[{resp.verdict.upper()}] — {resp.mechanism.value.replace('_',' ')}")
@@ -81,12 +114,13 @@ if submitted:
     else:
         st.success("✓ Auditor: no parametric leakage detected")
 
-    with st.expander("Run telemetry"):
+    with st.expander("Run telemetry", expanded=True):
         st.json({
             "run_id": resp.run_id,
             "latency_ms": resp.latency_ms,
             "cost_usd": resp.cost_usd,
             "data_versions": resp.data_versions,
+            "model_assignment": MODEL_ASSIGNMENT,
         })
 
     st.caption(resp.disclaimer)

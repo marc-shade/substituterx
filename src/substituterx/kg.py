@@ -183,6 +183,44 @@ class KGStore:
         ).fetchall()
         return [self._row_to_edge(r) for r in rows]
 
+    def ingredient_siblings(self, rxcui: str) -> list[str]:
+        """All RxCUIs sharing the same ingredient_in as the given drug."""
+        d = self.get_drug(rxcui)
+        if not d:
+            return []
+        rows = self.con.execute(
+            "SELECT rxcui FROM drugs WHERE ingredient_in = ?", [d.ingredient_in]
+        ).fetchall()
+        return [r[0] for r in rows]
+
+    def safety_edges_across_ingredients(
+        self, rxcui_a: str, rxcui_b: str,
+        relations: tuple[str, ...] = (
+            "nti_pair_unsafe", "contraindicated_with_allergy", "requires_prescriber_notice",
+        ),
+    ) -> list[Edge]:
+        """Find safety-class edges between the ingredient-class of A and that of B.
+
+        This is the one-hop ingredient-class widening: even when the specific bottle and
+        MAR RxCUIs have no direct edge (e.g. metoprolol tartrate 25 mg vs Toprol XL 50 mg),
+        the dangerous-pair edge between the *ingredient classes* (succinate ↔ tartrate)
+        must still fire. Purely additive — never used to claim equivalence, only to flag risk.
+        """
+        siblings_a = self.ingredient_siblings(rxcui_a)
+        siblings_b = self.ingredient_siblings(rxcui_b)
+        if not siblings_a or not siblings_b:
+            return []
+        placeholders_a = ",".join(["?"] * len(siblings_a))
+        placeholders_b = ",".join(["?"] * len(siblings_b))
+        placeholders_r = ",".join(["?"] * len(relations))
+        rows = self.con.execute(
+            f"""SELECT * FROM edges WHERE relation IN ({placeholders_r})
+                 AND ((subject IN ({placeholders_a}) AND object IN ({placeholders_b}))
+                   OR (subject IN ({placeholders_b}) AND object IN ({placeholders_a})))""",
+            [*relations, *siblings_a, *siblings_b, *siblings_b, *siblings_a],
+        ).fetchall()
+        return [self._row_to_edge(r) for r in rows]
+
     @staticmethod
     def _row_to_edge(row: tuple) -> Edge:
         edge_id, relation, subject, object_, constraint_items, citations = row

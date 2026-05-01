@@ -62,20 +62,31 @@ class Orchestrator:
             "auditor": getattr(self.auditor.provider, "model", "unknown"),
         })
 
-    def explain(self, bottle: BottleLabel, mar: MAREntry, resident_id: str) -> ExplainResponse:
+    def explain(
+        self, bottle: BottleLabel, mar: MAREntry, resident_id: str,
+        progress=None,
+    ) -> ExplainResponse:
+        """progress: optional callable(stage:str, detail:str) for UI progress reporting."""
         run_id = new_run_id()
         t0 = time.time()
         total_cost = 0.0
 
+        def _p(stage: str, detail: str = ""):
+            if progress:
+                progress(stage, detail)
+
+        _p("begin", "")
         self.audit.emit(run_id, "orchestrator", "begin", {
             "bottle": bottle.model_dump(), "mar": mar.model_dump(), "resident_id": resident_id,
         })
 
         # ---- Resolve RxCUIs from labels via local KG (production: RxNav approximateTerm fallback).
+        _p("resolve", f"bottle={bottle.label_text!r} mar={mar.label_text!r}")
         bottle.rxcui = bottle.rxcui or _resolve_rxcui(bottle, self.kg)
         mar.rxcui = mar.rxcui or _resolve_rxcui(mar, self.kg)
 
         # ---- Context Extractor
+        _p("context_extractor", f"resident={resident_id}")
         ctx = self.extractor.extract(run_id, resident_id)
         if ctx is None:
             return self._abstain(run_id, t0, total_cost,
@@ -83,6 +94,7 @@ class Orchestrator:
                                  "Resident profile is unavailable; cannot reason about safety.")
 
         # ---- Reasoner
+        _p("reasoner", getattr(self.reasoner.provider, "model", "?"))
         claims, m1 = self.reasoner.propose(run_id, bottle, mar)
         total_cost += m1.get("cost_usd", 0.0)
 
@@ -106,16 +118,63 @@ class Orchestrator:
             })
 
         # ---- Validator
+        _p("validator", getattr(self.validator.provider, "model", "?"))
         validator_report, m2 = self.validator.validate(run_id, claims.structured_claims, ctx)
         total_cost += m2.get("cost_usd", 0.0)
 
+        # ---- Safety widening: ingredient-class hop for red-flag edges.
+        # Even when the specific bottle/MAR RxCUIs have no direct edge, dangerous pairs
+        # at the ingredient-class level (e.g. metoprolol tartrate ↔ succinate) must surface.
+        if bottle.rxcui and mar.rxcui:
+            hop_edges = self.kg.safety_edges_across_ingredients(bottle.rxcui, mar.rxcui)
+            if hop_edges:
+                from ..models import EdgeVerdict, Citation
+                bottle_drug = self.kg.get_drug(bottle.rxcui)
+                mar_drug = self.kg.get_drug(mar.rxcui)
+                bottle_ing = bottle_drug.ingredient_in if bottle_drug else "unknown"
+                mar_ing = mar_drug.ingredient_in if mar_drug else "unknown"
+                for edge in hop_edges:
+                    if any(v.edge_id == edge.edge_id for v in validator_report.edge_verdicts):
+                        continue
+                    sibling_explanation = (
+                        f"Ingredient-class hop: bottle ({bottle_ing}) "
+                        f"and MAR ({mar_ing}) share a "
+                        f"{edge.relation} relation — "
+                        + "; ".join(f"{ci.get('key')}={ci.get('value')}" for ci in edge.constraint_items)
+                    )
+                    validator_report.edge_verdicts.append(EdgeVerdict(
+                        edge_id=edge.edge_id, relation=edge.relation,
+                        subject=edge.subject, object=edge.object,
+                        status="contradicted",
+                        reasoning=sibling_explanation,
+                        citations=[Citation(**c) for c in edge.citations],
+                        constraint_items_evaluated=[
+                            {"key": ci.get("key"), "value": ci.get("value"),
+                             "status": "contradicted", "reasoning": "ingredient-class hop",
+                             "matched_literal": ""}
+                            for ci in edge.constraint_items
+                        ],
+                    ))
+                self.audit.emit(run_id, "orchestrator", "ingredient_class_hop", {
+                    "bottle_rxcui": bottle.rxcui, "mar_rxcui": mar.rxcui,
+                    "hop_edges": [e.edge_id for e in hop_edges],
+                })
+
         # ---- Auditor
+        _p("auditor", getattr(self.auditor.provider, "model", "?"))
         audit_report, m3 = self.auditor.review(run_id, validator_report)
         total_cost += m3.get("cost_usd", 0.0)
 
-        # ---- Filter downgraded edges
+        # ---- Filter downgraded edges (but never downgrade ingredient-class hop red flags;
+        # those are deterministic safety widenings, not LLM-narrated claims).
+        hop_edge_ids = {e.edge_id for e in (
+            self.kg.safety_edges_across_ingredients(bottle.rxcui, mar.rxcui)
+            if bottle.rxcui and mar.rxcui else []
+        )}
         active_verdicts = [v for v in validator_report.edge_verdicts
-                           if v.edge_id not in audit_report.downgraded_edge_ids]
+                           if v.edge_id not in audit_report.downgraded_edge_ids
+                           or v.edge_id in hop_edge_ids]
+        _p("decide", "")
 
         # ---- Decide
         verdict, mechanism, explanation, abstain_reason = self._decide(
