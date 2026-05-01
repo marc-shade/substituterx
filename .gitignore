@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.local
+*.db
+*.sqlite
+data/raw/
+data/processed/*.parquet
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+.DS_Store
+audit_logs/
