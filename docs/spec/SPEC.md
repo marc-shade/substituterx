@@ -168,6 +168,10 @@ The eval harness lives at `tests/eval/`. It is the proof of the prototype.
 
 A single failure on a dangerous trap kills the prototype. The bar is asymmetric on purpose.
 
+### 8.3 Ablation gate
+
+`python -m tests.eval.run_eval --ablation` runs the same 11 cases under three orchestration configurations (mock / medgemma-single / hybrid) and emits a side-by-side comparison at `docs/process/EVAL_ABLATION.md`. The asymmetric bar (100% on dangerous traps) is enforced *per mode* — any mode failing a dangerous trap exits non-zero. This is the production-grade gate: a regression in any provider configuration blocks merge.
+
 ## 9. Operational completeness checklist
 
 - [x] Structured audit log (JSON-Lines, run_id-keyed, every agent step)
