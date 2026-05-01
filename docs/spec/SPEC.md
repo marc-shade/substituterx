@@ -16,7 +16,7 @@
 
 The system **explains substitutions the pharmacist already made**, applies resident context to flag any clinical concern, and routes ambiguous or high-risk cases to **"Call the pharmacy."** It does not authorize substitution. It scopes and explains.
 
-This reframing is non-negotiable. It is also what differentiates the prototype from `FrameworkLTC+™` (prescriber→pharmacist intake automation) and `FrameworkVision` (a comms channel without a clinical-explainer agent). *Source: `04_ltc_domain.md` §1, §7.*
+This reframing is non-negotiable. It is also what differentiates the prototype from `the LTC pharmacy management platform's AI order-entry tool` (prescriber→pharmacist intake automation) and the pharmacy↔facility comms channel (a comms channel without a clinical-explainer agent). *Source: `04_ltc_domain.md` §1, §7.*
 
 ## 2. Non-goals
 
@@ -183,17 +183,17 @@ A single failure on a dangerous trap kills the prototype. The bar is asymmetric 
 - [x] Tenacity-based retry with explicit failure cap (no silent fallback)
 - [x] Cost + latency captured per run
 - [x] Eval harness as CI gate
-- [ ] *Production gaps documented for Alpha Lab review* (HIPAA, EHR integration, real RxNorm full subscription via UMLS, multi-tenant, rate limiting, Azure deployment)
+- [ ] *Production gaps documented for engineering review* (HIPAA, EHR integration, real RxNorm full subscription via UMLS, multi-tenant, rate limiting, Azure deployment)
 
 ## 10. Stack decision
 
 Prototype: **Python 3.11**, FastAPI, Pydantic v2, DuckDB, Anthropic SDK + Azure OpenAI compat shim. UI: minimal Streamlit (or HTMX) — demo-grade only. *User decision, see PROCESS.md §0.*
 
-Refactor path to Alpha Lab production: **.NET 8 minimal API** for the validator service, **Next.js 15** for the caregiver UI, **Azure OpenAI** for LLM, **Azure AI Search** for RxNorm/Orange Book retrieval, **Cosmos DB Gremlin** for the KG. The agent contracts in §6 are the integration seam; nothing in §6 depends on Python.
+Refactor path to production: **.NET 8 minimal API** for the validator service, **Next.js 15** for the caregiver UI, **Azure OpenAI** for LLM, **Azure AI Search** for RxNorm/Orange Book retrieval, **Cosmos DB Gremlin** for the KG. The agent contracts in §6 are the integration seam; nothing in §6 depends on Python.
 
 ## 11. Open questions deferred to PROCESS.md retro
 
-1. UMLS license requirement for full RxNorm in production — does Softwriters already hold one?
+1. UMLS license requirement for full RxNorm in production — does the prospective employer already hold one?
 2. PrimeKG dataset license terms — confirm CC0 vs custom before redistribution.
-3. Real resident-context source in production — FrameworkLTC EHR? FrameworkVision? Direct facility integration?
+3. Real resident-context source in production — the LTC dispensing-platform EHR? the pharmacy↔facility comms channel? Direct facility integration?
 4. Whether the auditor's parametric-leakage check should block or warn in production — defaults to block in prototype.

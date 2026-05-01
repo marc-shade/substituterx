@@ -1,6 +1,6 @@
 # PROCESS — How this prototype was built
 
-*The meta-deliverable. The point of this document is not the prototype — it's how the prototype was built. If a SoftWriters Alpha Lab dev reads this and says "I could not have built this in a chat window," it has done its job.*
+*The meta-deliverable. The point of this document is not the prototype — it's how the prototype was built. If a reviewing engineer reads this and says "I could not have built this in a chat window," it has done its job.*
 
 **Author:** Marc Shade  
 **Date:** 2026-05-01  
@@ -15,13 +15,13 @@ Before any code or research, five scoping questions were asked and answered. Thi
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Working volume | `/Volumes/SSDRAID0/code/softwriters-substituterx/` (per the SSDRAID0 = execution rule). Pointer left at `/Volumes/FILES/code/SoftWriters/SSDRAID0_POINTER.txt`. |
+| 1 | Working volume | `/Volumes/SSDRAID0/code/substituterx/` (per the SSDRAID0 = execution rule). |
 | 2 | Stack | Python 3.11 prototype. Refactor path to .NET 8 + Next.js + Azure OpenAI is documented in SPEC §10. |
 | 3 | Scope cut | Read-only advisory; one resident profile per call; ~50 drugs covering the dangerous-substitution red-team. |
 | 4 | Time budget | Work as fast as possible, no pacing. (We did.) |
 | 5 | Process visibility | **Show the apparatus** — orchestrator prompts captured, agent transcripts logged, commit trailers reproducible. |
 
-**Why this matters.** The Alpha Lab role description names "ambiguous hypotheses → working software with measurable validation" as the core competency. Capturing scope decisions before research starts is what separates a working agent system from a chat thread.
+**Why this matters.** The innovation-team role description names "ambiguous hypotheses → working software with measurable validation" as the core competency. Capturing scope decisions before research starts is what separates a working agent system from a chat thread.
 
 ## 1. Research phase — parallel forks (~3 minutes wall clock)
 
@@ -32,9 +32,9 @@ Four research questions were dispatched **in parallel** as isolated forks at ses
 | 1 | RxNorm / RxNav API surface | 600 | ~80s | `docs/research/01_rxnorm.md` |
 | 2 | FDA Orange Book schema + TE-code semantics | 700 | ~120s | `docs/research/02_orange_book.md` |
 | 3 | PrimeKG + locate the QKG paper repo | 800 | ~80s | `docs/research/03_primekg_qkg.md` |
-| 4 | LTC pharmacy substitution domain (regulation, scope-of-practice, FrameworkLTC ecosystem) | 800 | ~75s | `docs/research/04_ltc_domain.md` |
+| 4 | LTC pharmacy substitution domain (regulation, scope-of-practice, the existing LTC dispensing-platform ecosystem) | 800 | ~75s | `docs/research/04_ltc_domain.md` |
 
-The full orchestrator prompts are captured in `docs/process/00_apparatus_orchestrator_prompts.md` so a SoftWriters dev can reproduce the dispatch.
+The full orchestrator prompts are captured in `docs/process/00_apparatus_orchestrator_prompts.md` so a reviewing engineer can reproduce the dispatch.
 
 ### Discipline that paid off
 
@@ -155,7 +155,7 @@ To reproduce: `SUBSTITUTERX_PROVIDER=ollama SUBSTITUTERX_MODEL=medgemma1.5:4b-it
 
 ### Audit log
 
-Every run writes JSON-Lines records keyed by `run_id` to `audit_logs/audit.jsonl`. A SoftWriters dev can grep one `run_id` and reconstruct every agent step, including LLM call cost, latency, and the auditor's downgrades. Sample event types: `orchestrator.begin`, `context_extractor.extract`, `reasoner.propose`, `validator.validate`, `auditor.review`, `orchestrator.complete`. This is the answer to "auditability" in the Alpha Lab job description.
+Every run writes JSON-Lines records keyed by `run_id` to `audit_logs/audit.jsonl`. A reviewing engineer can grep one `run_id` and reconstruct every agent step, including LLM call cost, latency, and the auditor's downgrades. Sample event types: `orchestrator.begin`, `context_extractor.extract`, `reasoner.propose`, `validator.validate`, `auditor.review`, `orchestrator.complete`. This is the answer to "auditability" in the job description.
 
 ## 6. The apparatus — what made this fast
 
@@ -166,20 +166,20 @@ These are the Claude Code primitives that compressed a typical 1-2 week prototyp
 3. **Word caps and falsification clauses on every fork prompt.** Forks were rewarded for compact, citation-rich output — and explicitly authorized to return null results.
 4. **Atomic commits with conventional trailers.** Every commit message names the lane (research / build / fix), the agent that did the work, and the verification mode.
 5. **CI-grade eval as a gate, not a report.** The eval harness exits non-zero on any dangerous-trap miss. A regression cannot land silently.
-6. **Provider abstraction.** When the Anthropic API key hit a billing wall, the build pivoted to Ollama and Mock without rewriting the agent layer. Provider-agnostic agent contracts is what the Alpha Lab job description means by "fallbacks."
+6. **Provider abstraction.** When the Anthropic API key hit a billing wall, the build pivoted to Ollama and Mock without rewriting the agent layer. Provider-agnostic agent contracts is what the job description means by "fallbacks."
 7. **A typed contract layer.** `models.py` is the integration seam for the .NET 8 production refactor. Pydantic v2 models map 1:1 to C# records.
 
 ## 7. What is *not* in this prototype (deliberately)
 
 - No real RxNorm / Orange Book / PrimeKG ingest. Ingest scripts are designed and documented in research files; the seed data is hand-curated to demo the architecture, not the dataset breadth.
-- No EHR / FrameworkLTC integration. The resident store is synthetic JSON; production replaces it with a `FrameworkVision` adapter.
+- No EHR / the LTC dispensing platform integration. The resident store is synthetic JSON; production replaces it with a the pharmacy↔facility comms channel adapter.
 - No HIPAA controls. UI mirrors production conventions (disclaimer, abstain banner, audit log) but synthetic data only.
 - No Azure deployment. The container image, Bicep templates, and Application Insights instrumentation belong in the .NET refactor.
 - No live recall cross-check call to openFDA. Stubbed in the SPEC; one-line addition in `validator.py`.
 
 These are scoped out **on purpose** — the prototype is an architectural proof, not a feature push. Scope discipline is itself a deliverable.
 
-## 8. Production refactor map (Alpha Lab → .NET 8 + Next.js + Azure)
+## 8. Production refactor map (production target → .NET 8 + Next.js + Azure)
 
 | Prototype | Production target | Notes |
 |---|---|---|
@@ -191,7 +191,7 @@ These are scoped out **on purpose** — the prototype is an architectural proof,
 | Streamlit UI | Next.js 15 (App Router) + shadcn/ui | Caregiver UX needs offline-capable PWA path; React Native for the bedside tablet |
 | `tests/eval/run_eval.py` | GitHub Actions / Azure DevOps pipeline gating PR merges | Same asymmetric bar; same red-team cases |
 
-## 9. What a SoftWriters dev should look at first
+## 9. What a reviewing engineer should look at first
 
 1. `docs/spec/SPEC.md` — the architectural commitment. 11 sections, every claim cites a research file.
 2. `src/substituterx/agents/orchestrator.py:99-141` — the decision logic. Read this and you know exactly when the system abstains.
@@ -204,7 +204,7 @@ These are scoped out **on purpose** — the prototype is an architectural proof,
 - Build the Ollama provider before the Anthropic provider. The credit-wall pivot was avoidable with two minutes of upfront thinking.
 - Write the eval cases *first*, not after the build. The asymmetric bar would have driven KG-edge selection more cleanly.
 - Use a graph DB (Kùzu or Neo4j-lite) from the start. DuckDB worked for ~30 edges; at 50K edges (full PrimeKG diabetes subset) it would have wanted a graph index.
-- Move resident-context lookup behind an interface from day one. The `FrameworkVision` mock is the integration point and should be a protocol, not a concrete class.
+- Move resident-context lookup behind an interface from day one. The the pharmacy↔facility comms channel mock is the integration point and should be a protocol, not a concrete class.
 
 These are the kind of things you say in the post-mortem. They are not what we say to the customer. The prototype shipped on schedule, passes the asymmetric eval bar, and is reproducible from a `git clone` + `uv sync`.
 

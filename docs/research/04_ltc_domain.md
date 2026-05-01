@@ -10,7 +10,7 @@
 
 The MAR (Medication Administration Record) is the caregiver's source of truth. They administer what the MAR says; bottle/MAR mismatch protocol = **call the pharmacy**, not interpret.
 
-**FrameworkLTC+™** (verified): "AI that reads, populates, and streamlines order entry" — prescriber→pharmacist intake automation (OCR/NLP over scripts populating dispensing). **Not** caregiver-facing. Adjacent FrameworkVision = facility↔pharmacy comms (where caregiver questions actually flow). FrameworkRxP = pharmacist-led MRR. Other modules: FrameworkECM (docs), FrameworkInsight (analytics), FrameworkFlow (mobile barcode), FrameworkCourier/POD (delivery). **No existing Softwriters product targets the caregiver explainer use case.**
+**the LTC pharmacy management platform's AI order-entry tool** (verified): "AI that reads, populates, and streamlines order entry" — prescriber→pharmacist intake automation (OCR/NLP over scripts populating dispensing). **Not** caregiver-facing. Adjacent the pharmacy↔facility comms channel = facility↔pharmacy comms (where caregiver questions actually flow). the pharmacist-led MRR tooling = pharmacist-led MRR. Other modules: adjacent modules cover document workflow, analytics, mobile barcode, and delivery. **No existing in-house product targets the caregiver explainer use case.**
 
 ## 2. DAW codes (NCPDP)
 
@@ -64,10 +64,10 @@ Synthetic data only → HIPAA N/A, but UI mirrors production:
 
 Persistent banner + per-result footer. Every recommendation surfaces citations (RxNorm RXCUI, Orange Book TE code, DailyMed SPL ID). Abstain path required for incomplete context, NTI/REMS drugs.
 
-## 7. Differentiation vs. existing Softwriters
+## 7. Differentiation vs. existing in-house
 
-Nothing in their portfolio targets the caregiver. FrameworkVision is the channel but not a clinical-explainer agent. **Defensible niche: caregiver-side explainer with resident-context-aware safety check**, grounded in the same RxNorm/Orange Book sources the dispensing side uses.
+Nothing in their portfolio targets the caregiver. the pharmacy↔facility comms channel is the channel but not a clinical-explainer agent. **Defensible niche: caregiver-side explainer with resident-context-aware safety check**, grounded in the same RxNorm/Orange Book sources the dispensing side uses.
 
-Softwriters scale (verified): 800 pharmacies / 49 states / 2M patients / 15K daily users.
+in-house production scale (verified): 800 pharmacies / 49 states / 2M patients / 15K daily users.
 
-Sources: frameworkltc.com (verified), softwriters.com (verified), NCPDP DAW (training), FDA Orange Book preamble (training), ISMP confused-name list (training, fetch 403).
+Sources: the LTC dispensing-platform vendor site (verified), the prospective employer's site (verified), NCPDP DAW (training), FDA Orange Book preamble (training), ISMP confused-name list (training, fetch 403).

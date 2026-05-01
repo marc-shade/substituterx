@@ -10,7 +10,7 @@
 ## First-time setup
 
 ```bash
-cd /Volumes/SSDRAID0/code/softwriters-substituterx
+cd /Volumes/SSDRAID0/code/substituterx
 uv venv --python python3.11 .venv
 uv pip install -e ".[dev]"
 uv pip install streamlit

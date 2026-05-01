@@ -1,12 +1,12 @@
 # Apparatus — Orchestrator prompts
 
-This is what the parent orchestrator (Claude Code, Opus 4.7) sent to spawn the four parallel research forks at session start, **2026-05-01 ~10:21 EDT**. Captured verbatim so a SoftWriters dev can reproduce the workflow.
+This is what the parent orchestrator (Claude Code, Opus 4.7) sent to spawn the four parallel research forks at session start, **2026-05-01 ~10:21 EDT**. Captured verbatim so a reviewing engineer can reproduce the workflow.
 
 The forks ran concurrently, each in an isolated context window, returning compact synthesis to the parent. This is the cheapest form of compaction — sub-agent contexts don't pollute the parent's reasoning trace, and outputs are bounded by explicit word caps.
 
 ## Why fork-based research first
 
-The Alpha Lab job calls out "orchestration, tool use, context handling, fallbacks" as core competencies. Forks are the simplest production-grade orchestration primitive available in the Claude Code harness:
+The innovation-lab job calls out "orchestration, tool use, context handling, fallbacks" as core competencies. Forks are the simplest production-grade orchestration primitive available in the Claude Code harness:
 - Each fork shares the parent's prompt cache (cheap)
 - Each fork's tool-call output stays in its own context (clean)
 - Each fork returns synthesis only (small token footprint on parent)
@@ -46,7 +46,7 @@ Word cap: 800. Includes a falsification clause: "if the repo doesn't show up in 
 
 ## Fork 4 — LTC pharmacy substitution domain
 
-Goal: regulatory framing, DAW codes, real high-risk substitution scenarios, FrameworkLTC ecosystem fit.
+Goal: regulatory framing, DAW codes, real high-risk substitution scenarios, the existing LTC dispensing-platform ecosystem fit.
 
 ```
 [prompt verbatim]

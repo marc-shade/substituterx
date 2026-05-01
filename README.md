@@ -1,6 +1,6 @@
 # SubstituteRx
 
-Caregiver-facing medication substitution advisor. Read-only decision-support prototype demonstrating an agentic build process for the SoftWriters Alpha Lab interview (2026-05-04).
+Caregiver-facing medication reconciliation explainer. Read-only decision-support prototype demonstrating an agentic build process for an interview deliverable in the LTC pharmacy domain.
 
 ## What this is
 
@@ -41,4 +41,4 @@ pytest tests/eval -v
 
 ## Process apparatus
 
-This project was built using a documented multi-agent workflow under Claude Code. The full apparatus — orchestrator prompts, sub-agent transcripts, commit trailers, eval traces — is captured in `docs/process/`. That apparatus IS the deliverable for the Alpha Lab demo.
+This project was built using a documented multi-agent workflow under Claude Code. The full apparatus — orchestrator prompts, sub-agent transcripts, commit trailers, eval traces — is captured in `docs/process/`. That apparatus IS the deliverable for the demo.
