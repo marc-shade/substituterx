@@ -101,6 +101,20 @@ jq -c "select(.run_id == \"$RUN_ID\")" audit_logs/audit.jsonl
 rm -f audit_logs/*.jsonl
 ```
 
+## Troubleshooting
+
+**`bad interpreter: <old-path>/.venv/bin/python3`** — you renamed or moved the project directory. Venvs hardcode the absolute path of their original location in every `bin/` shebang. Rebuild:
+
+```bash
+rm -rf .venv
+uv venv --python python3.11 .venv
+uv pip install -e ".[dev,ui]"
+```
+
+**`ModuleNotFoundError: No module named 'substituterx'`** — same root cause. The editable-install `.pth` file pins the original path. Same fix as above.
+
+**`Address already in use`** on port 8501 (Streamlit) or 8001/8002 (FastAPI) — a previous run is still listening. `lsof -i :8501` to find the PID, `kill <pid>`, or pick a different port with `--server.port` / `--port`.
+
 ## Repo layout
 
 ```
