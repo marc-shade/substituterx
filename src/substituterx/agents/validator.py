@@ -20,56 +20,57 @@ from ..provider import AnthropicProvider
 
 def _eval_constraint(
     key: str, value, drug_subject, drug_object, P: ResidentContextVector
-) -> tuple[str, str]:
-    """Return (status, reasoning) for a single constraint_item.
+) -> tuple[str, str, str]:
+    """Return (status, reasoning, matched_literal) for a single constraint_item.
 
-    status: 'supported' | 'contradicted' | 'unknown'
+    `matched_literal` is the concrete value that satisfied the constraint pattern, or "".
+    The auditor uses this to recognize that the validator's narration is grounded in
+    the constraint_item, even when the constraint value is a pattern/glob.
     """
     if key == "te_code_required":
-        # Pattern like "A*" — match any A-prefixed TE code on the candidate
         if drug_subject and drug_subject.te_code and drug_subject.te_code.startswith("A"):
-            return "supported", f"TE code {drug_subject.te_code} is A-rated"
-        return "contradicted", f"TE code {getattr(drug_subject,'te_code',None)} is not A-rated"
+            return "supported", f"TE code {drug_subject.te_code} is A-rated", drug_subject.te_code
+        return "contradicted", f"TE code {getattr(drug_subject,'te_code',None)} is not A-rated", ""
 
     if key == "ingredient_match":
         if drug_subject and drug_object and drug_subject.ingredient_in == drug_object.ingredient_in:
-            return "supported", f"both ingredients = {value}"
-        return "contradicted", "ingredients differ"
+            return "supported", f"both ingredients = {value}", drug_subject.ingredient_in
+        return "contradicted", "ingredients differ", ""
 
     if key == "dose_form_match":
         if drug_subject and drug_object and drug_subject.dose_form == drug_object.dose_form:
-            return "supported", f"both dose forms = {value}"
-        return "contradicted", "dose forms differ"
+            return "supported", f"both dose forms = {value}", drug_subject.dose_form
+        return "contradicted", "dose forms differ", ""
 
     if key == "egfr_threshold":
         if P.egfr is None:
-            return "unknown", "resident eGFR not recorded"
+            return "unknown", "resident eGFR not recorded", ""
         if P.egfr < float(value):
-            return "contradicted", f"resident eGFR {P.egfr} < {value} — dose adjustment required"
-        return "supported", f"resident eGFR {P.egfr} ≥ {value}"
+            return "contradicted", f"resident eGFR {P.egfr} < {value} — dose adjustment required", str(P.egfr)
+        return "supported", f"resident eGFR {P.egfr} ≥ {value}", str(P.egfr)
 
     if key == "age_threshold":
         if P.age >= int(value):
-            return "supported", f"resident age {P.age} ≥ {value} (NTI sensitivity applies)"
-        return "supported", f"resident age {P.age} < {value} (threshold not triggered)"
+            return "supported", f"resident age {P.age} ≥ {value} (NTI sensitivity applies)", str(P.age)
+        return "supported", f"resident age {P.age} < {value} (threshold not triggered)", str(P.age)
 
     if key == "cross_reactivity":
         triggers = value if isinstance(value, list) else [value]
         hit = [a for a in P.allergies if a.lower() in [t.lower() for t in triggers]]
         if hit:
-            return "contradicted", f"resident allergy {hit} cross-reacts with {triggers}"
-        return "supported", "no allergy match"
+            return "contradicted", f"resident allergy {hit} cross-reacts with {triggers}", ",".join(hit)
+        return "supported", "no allergy match", ""
 
     if key == "nti_class":
         if drug_subject and drug_subject.nti:
-            return "supported", f"drug is NTI class={value}"
-        return "supported", "NTI flag noted"
+            return "supported", f"drug is NTI class={value}", str(value)
+        return "supported", "NTI flag noted", ""
 
     if key == "requires_prescriber":
-        return "contradicted" if str(value).lower() == "true" else "supported", \
-               "therapeutic interchange requires prescriber"
+        return ("contradicted" if str(value).lower() == "true" else "supported",
+                "therapeutic interchange requires prescriber", str(value))
 
-    return "unknown", f"no deterministic evaluator for key={key}"
+    return "unknown", f"no deterministic evaluator for key={key}", ""
 
 
 def _aggregate(statuses: list[str]) -> str:
@@ -124,8 +125,11 @@ class ValidatorAgent:
                 for ci in edge.constraint_items:
                     key = ci.get("key", "")
                     val = ci.get("value")
-                    status, reason = _eval_constraint(key, val, drug_s, drug_o, P)
-                    evals.append({"key": key, "value": val, "status": status, "reasoning": reason})
+                    status, reason, matched = _eval_constraint(key, val, drug_s, drug_o, P)
+                    evals.append({
+                        "key": key, "value": val, "status": status,
+                        "reasoning": reason, "matched_literal": matched,
+                    })
                     statuses.append(status)
 
                 # Edge-level relation aggregation

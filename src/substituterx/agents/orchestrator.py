@@ -37,16 +37,30 @@ class Orchestrator:
         self,
         kg: KGStore,
         residents: ResidentStore,
-        provider: AnthropicProvider,
+        provider,  # default provider; per-agent overrides resolved here
         audit: AuditLog,
     ) -> None:
         self.kg = kg
         self.residents = residents
         self.audit = audit
-        self.reasoner = ReasonerAgent(provider, audit)
+        # Per-agent model selection: each agent can override via SUBSTITUTERX_MODEL_<ROLE>.
+        # Falls back to the default provider if no override set.
+        from ..provider import get_provider
+        import os
+        def _agent_provider(role: str):
+            if os.environ.get(f"SUBSTITUTERX_MODEL_{role.upper()}"):
+                return get_provider(role)
+            return provider
+        self.reasoner = ReasonerAgent(_agent_provider("reasoner"), audit)
         self.extractor = ContextExtractorAgent(residents, audit)
-        self.validator = ValidatorAgent(kg, provider, audit)
-        self.auditor = AuditorAgent(provider, audit)
+        self.validator = ValidatorAgent(kg, _agent_provider("validator"), audit)
+        self.auditor = AuditorAgent(_agent_provider("auditor"), audit)
+        # Capture the actual model assignments for the audit trail
+        audit.emit("orchestrator-init", "orchestrator", "model_assignment", {
+            "reasoner": getattr(self.reasoner.provider, "model", "unknown"),
+            "validator": getattr(self.validator.provider, "model", "unknown"),
+            "auditor": getattr(self.auditor.provider, "model", "unknown"),
+        })
 
     def explain(self, bottle: BottleLabel, mar: MAREntry, resident_id: str) -> ExplainResponse:
         run_id = new_run_id()

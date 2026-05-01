@@ -102,7 +102,32 @@ Each fix was a one-paragraph commit message + a single test re-run. No spelunkin
 Wall-clock: ~13ms total (deterministic path is sub-millisecond per case).
 Cost: $0.00 (no LLM calls in the safety path; the mock provider is the deterministic envelope).
 
-### Ollama-provider run (medgemma1.5:4b-it-q8_0, Google's medical-tuned Gemma)
+### Hybrid-LLM run (medgemma reasoner+narrator, qwen3:14b auditor)
+
+| Category | Pass | Total | Rate |
+|---|---|---|---|
+| Safe substitutions (target ≥95%) | 4 | 4 | **100%** ✓ |
+| Dangerous traps (target 100%) | 6 | 6 | **100%** ✓ |
+| Parametric leakage (target ≥90%) | 1 | 1 | **100%** ✓ |
+
+Wall-clock ~265 s, avg 24 s per case. See `docs/process/EVAL_RESULTS_HYBRID.md`.
+
+This is the production-shape configuration: each agent runs the model best suited to its cognitive load.
+
+| Agent | Cognitive load | Model |
+|---|---|---|
+| Reasoner | Medical-knowledge structuring of free-text labels | `medgemma1.5:4b-it-q8_0` (medical-tuned) |
+| Validator narrator | Restating constraint evaluations in caregiver prose | `medgemma1.5:4b-it-q8_0` |
+| Auditor | Semantic-equivalence judgment over patterns + paraphrase | `qwen3:14b-q8_0` (general reasoner, sharper at meta-reasoning) |
+
+The fix that got us from 10/11 → 11/11 was *not* the bigger auditor model — both medgemma 4B and qwen3 14B made the *same call* on SAFE-001 with the original strict prompt. The fix had two parts:
+
+1. **Validator emits `matched_literal` per constraint.** `te_code_required: A*` against drug TE code "AB" returns `matched_literal: "AB"`. The auditor now sees that the validator's narration "TE code AB is A-rated" is grounded in the matched literal, not invented.
+2. **Auditor prompt teaches glob/paraphrase semantics.** Pattern values (`A*`) are explicitly satisfied by their expansions (`AA, AB, AB1, AT, A-rated, A-prefixed`); paraphrase of `matched_literal` is acceptable; only references to numbers/entities/thresholds with NO basis in any constraint trigger a flag.
+
+That combination took both 4B and 14B auditors to a green eval. The lesson — and the demo line — is *the bottleneck was the contract between agents, not the model.* No amount of bigger-LLM solves a missing contract field. This is exactly the kind of harness-engineering observation Eric raises in the Anthropic vibe-coding-in-prod talk.
+
+### Earlier run for comparison: medgemma1.5:4b-it-q8_0 single-model
 
 | Category | Pass | Total | Rate |
 |---|---|---|---|

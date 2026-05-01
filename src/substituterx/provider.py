@@ -192,19 +192,36 @@ class MockProvider:
         }, result)
 
 
-def get_provider():
+def get_provider(agent: str | None = None):
+    """Return the provider for a given agent role.
+
+    Per-agent overrides are read from env vars (highest priority first):
+      SUBSTITUTERX_MODEL_REASONER, _VALIDATOR, _AUDITOR
+    Falling back to:
+      SUBSTITUTERX_MODEL  (global default)
+    Provider kind is set by SUBSTITUTERX_PROVIDER (auto | anthropic | ollama | mock).
+
+    This is the orchestration seam: different agents have different cognitive loads
+    (medical knowledge vs. semantic-judgment vs. structured extraction). Routing each
+    to the right model is what 'orchestration / fallbacks' on the JD means in practice.
+    """
     kind = os.environ.get("SUBSTITUTERX_PROVIDER", "auto").lower()
+    role_env = f"SUBSTITUTERX_MODEL_{agent.upper()}" if agent else None
+    model = (
+        (os.environ.get(role_env) if role_env else None)
+        or os.environ.get("SUBSTITUTERX_MODEL")
+    )
+
     if kind == "anthropic":
-        return AnthropicProvider(os.environ.get("SUBSTITUTERX_MODEL", "claude-sonnet-4-6"))
+        return AnthropicProvider(model or "claude-sonnet-4-6")
     if kind == "ollama":
-        return OllamaProvider(os.environ.get("SUBSTITUTERX_MODEL", "mistral-small3.2:latest"))
+        return OllamaProvider(model or "mistral-small3.2:latest")
     if kind == "mock":
         return MockProvider()
-    # auto: prefer Ollama if reachable, else mock (Anthropic only on explicit opt-in to avoid bills)
     try:
         import httpx
         host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
         httpx.get(f"{host}/api/tags", timeout=2.0).raise_for_status()
-        return OllamaProvider(os.environ.get("SUBSTITUTERX_MODEL", "mistral-small3.2:latest"))
+        return OllamaProvider(model or "mistral-small3.2:latest")
     except Exception:
         return MockProvider()
