@@ -126,7 +126,9 @@ class OllamaProvider:
         )
 
     def call_json(self, system: str, user: str, schema_hint: str, max_tokens: int = 1024) -> tuple[dict, LLMResult]:
-        import httpx, json as _json
+        import json as _json
+
+        import httpx
         sys_full = (
             f"{system}\n\nRespond with valid JSON only, matching this schema:\n{schema_hint}\n"
             "Do not include any prose outside the JSON object."
@@ -167,8 +169,7 @@ class MockProvider:
         return LLMResult(text="(mock)", input_tokens=0, output_tokens=0, model=self.model, cost_usd=0.0)
 
     def call_json(self, system: str, user: str, schema_hint: str, max_tokens: int = 1024) -> tuple[dict, LLMResult]:
-        # Reasoner-shaped output: extract bottle + MAR labels, propose claims.
-        lower = user.lower()
+        # Deterministic shapes; the actual decision lives in the validator/orchestrator.
         result = LLMResult(text="(mock)", input_tokens=0, output_tokens=0, model=self.model, cost_usd=0.0)
 
         if '"per_edge"' in schema_hint or "edge_id" in schema_hint and "leakage" not in schema_hint:

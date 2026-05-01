@@ -1,29 +1,39 @@
 [project]
 name = "substituterx"
 version = "0.1.0"
-description = "Caregiver-facing medication substitution advisor — agentic LTC-pharmacy interview prototype"
+description = "Caregiver-facing medication reconciliation explainer — agentic LTC-pharmacy interview prototype"
 requires-python = ">=3.11"
 dependencies = [
   "anthropic>=0.40.0",
-  "openai>=1.50.0",
   "pydantic>=2.9.0",
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.32.0",
   "httpx>=0.27.0",
   "duckdb>=1.1.0",
-  "pandas>=2.2.0",
   "rich>=13.9.0",
-  "python-dotenv>=1.0.0",
-  "structlog>=24.4.0",
   "tenacity>=9.0.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3.0", "pytest-asyncio>=0.24.0", "ruff>=0.7.0", "mypy>=1.13.0"]
+ui = ["streamlit>=1.40.0"]
+dev = ["pytest>=8.3.0", "pytest-asyncio>=0.24.0", "ruff>=0.7.0", "mypy>=1.13.0", "deptry>=0.20.0"]
 
 [tool.ruff]
-line-length = 110
+line-length = 120
 target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+"src/substituterx/ui.py" = ["E402"]            # sys.path setup before imports for streamlit script-mode
+"src/substituterx/agents/*.py" = ["E501"]      # long agent prompt + schema string literals are intentional
+"tests/eval/run_eval.py" = ["E402", "E501"]    # sys.path setup + demo-takeaway prose lines kept inline
+
+[tool.deptry]
+known_first_party = ["substituterx"]
+extend_exclude = ["audit_logs", "data"]
+
+[tool.deptry.per_rule_ignores]
+# Tools used as CLI / test runners / linters — intentionally not imported.
+DEP002 = ["uvicorn", "pytest", "pytest-asyncio", "ruff", "mypy", "deptry"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

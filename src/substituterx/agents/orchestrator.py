@@ -14,7 +14,6 @@ from ..models import (
     BottleLabel, MAREntry, Claim, ExplainResponse, Mechanism, AuditReport, EdgeVerdict,
     new_run_id,
 )
-from ..provider import AnthropicProvider
 from ..residents import ResidentStore
 from .auditor import AuditorAgent
 from .extractor import ContextExtractorAgent

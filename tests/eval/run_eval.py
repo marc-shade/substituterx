@@ -120,7 +120,8 @@ class ModeRun:
 def run_mode(mode: ModeConfig, cases) -> ModeRun:
     saved = _apply_env(mode.env)
     try:
-        kg = KGStore(); kg.load_seed()
+        kg = KGStore()
+        kg.load_seed()
         residents = ResidentStore()
         audit = AuditLog(Path(ROOT / "audit_logs" / f"eval_audit_{mode.label}.jsonl"))
         orch = Orchestrator(kg, residents, get_provider(), audit)
@@ -180,7 +181,8 @@ def run_mode(mode: ModeConfig, cases) -> ModeRun:
 # --------------------------------------------------------------------------- writers
 
 def write_single_report(run: ModeRun, out_path: Path) -> None:
-    rate = lambda c: run.pass_count[c] / max(run.total_count[c], 1)
+    def rate(c: str) -> float:
+        return run.pass_count[c] / max(run.total_count[c], 1)
     md = [f"# Eval results — {run.label}", "",
           f"_{run.description}_", "",
           f"Run timestamp: {time.strftime('%Y-%m-%d %H:%M:%S %Z')}", "",
@@ -216,10 +218,10 @@ def write_ablation_report(runs: list[ModeRun], out_path: Path) -> None:
     md += ["## Headline", "", "| Mode | Safe | Dangerous | Leakage | Wall-clock | Cost |",
            "|---|---|---|---|---|---|"]
     for run in runs:
-        s = f"{run.pass_count['safe']}/{run.total_count['safe']}"
-        d = f"{run.pass_count['dangerous']}/{run.total_count['dangerous']}"
-        l = f"{run.pass_count['leakage']}/{run.total_count['leakage']}"
-        md.append(f"| **{run.label}** | {s} | {d} | {l} | {run.total_seconds:.1f}s | ${run.total_cost:.4f} |")
+        safe = f"{run.pass_count['safe']}/{run.total_count['safe']}"
+        dangerous = f"{run.pass_count['dangerous']}/{run.total_count['dangerous']}"
+        leakage = f"{run.pass_count['leakage']}/{run.total_count['leakage']}"
+        md.append(f"| **{run.label}** | {safe} | {dangerous} | {leakage} | {run.total_seconds:.1f}s | ${run.total_cost:.4f} |")
     md.append("")
 
     md += ["## Per-case verdicts (side-by-side)", "",
@@ -233,7 +235,8 @@ def write_ablation_report(runs: list[ModeRun], out_path: Path) -> None:
         for run in runs:
             row = next((r for r in run.rows if r.case == case_id), None)
             if not row:
-                cells.append("—"); continue
+                cells.append("—")
+                continue
             ok = "✅" if row.ok else "❌"
             leak = " ⚠️" if row.audit_leak else ""
             cells.append(f"{ok} {row.got}{leak}")
