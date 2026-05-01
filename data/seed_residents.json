@@ -1,0 +1,14 @@
+{
+  "_meta": {
+    "description": "Synthetic resident profiles. NO PHI. Used as the resident_context_vector P (SPEC §6.2).",
+    "count": 6
+  },
+  "residents": [
+    {"resident_id":"R-0001","age":78,"sex":"F","allergies":[],"current_meds_rxcui":["866933","314076"],"conditions":["heart_failure_HFrEF","hypertension"],"egfr":62,"child_pugh":null,"nti_sensitive":false,"notes":"Stable HFrEF on Toprol XL + lisinopril."},
+    {"resident_id":"R-0002","age":82,"sex":"F","allergies":[],"current_meds_rxcui":["892244"],"conditions":["hypothyroidism"],"egfr":55,"child_pugh":null,"nti_sensitive":true,"notes":"On Synthroid 100 mcg; recent TSH trending up. NTI sensitive — brand consistency preferred."},
+    {"resident_id":"R-0003","age":71,"sex":"M","allergies":[],"current_meds_rxcui":["855332"],"conditions":["atrial_fibrillation"],"egfr":48,"child_pugh":null,"nti_sensitive":true,"notes":"On Coumadin 5mg. Stable INR."},
+    {"resident_id":"R-0004","age":67,"sex":"M","allergies":["sulfa","penicillin"],"current_meds_rxcui":["617318"],"conditions":["hyperlipidemia"],"egfr":75,"child_pugh":null,"nti_sensitive":false,"notes":"Documented sulfa allergy with rash history."},
+    {"resident_id":"R-0005","age":74,"sex":"F","allergies":[],"current_meds_rxcui":["832701"],"conditions":["hypertension","atrial_fibrillation"],"egfr":58,"child_pugh":null,"nti_sensitive":false,"notes":"On Cardizem CD 240mg, rate control."},
+    {"resident_id":"R-0006","age":69,"sex":"M","allergies":[],"current_meds_rxcui":["993690"],"conditions":["major_depressive_disorder"],"egfr":80,"child_pugh":null,"nti_sensitive":false,"notes":"On Wellbutrin XL 300mg. Stable mood."}
+  ]
+}

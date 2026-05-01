@@ -1,0 +1,29 @@
+{
+  "_meta": {
+    "description": "Knowledge graph edges with constraint_items per SPEC §5. Each edge says 'this relation holds, but only when these constraints on the resident context vector P are satisfied.' Validator evaluates constraint_items against P. Auditor scans the validator's reasoning to ensure citations come from these constraint_items, not from the LLM's parametric knowledge.",
+    "edge_count": 24
+  },
+  "edges": [
+    {"edge_id":"E001","relation":"is_generic_of","subject":"617318","object":"617314","constraint_items":[{"key":"te_code_required","value":"A*"},{"key":"ingredient_match","value":"atorvastatin"}],"citations":[{"source":"rxnorm","identifier":"RxCUI:617318"},{"source":"orange_book","identifier":"OB:ANDA090548:AB"}]},
+    {"edge_id":"E002","relation":"is_generic_of","subject":"197361","object":"206764","constraint_items":[{"key":"te_code_required","value":"A*"},{"key":"ingredient_match","value":"amlodipine"}],"citations":[{"source":"rxnorm","identifier":"RxCUI:197361"},{"source":"orange_book","identifier":"OB:ANDA076418:AB"}]},
+    {"edge_id":"E003","relation":"is_generic_of","subject":"314076","object":"104377","constraint_items":[{"key":"te_code_required","value":"A*"},{"key":"ingredient_match","value":"lisinopril"}],"citations":[{"source":"rxnorm","identifier":"RxCUI:314076"},{"source":"orange_book","identifier":"OB:ANDA074758:AB"}]},
+    {"edge_id":"E004","relation":"is_generic_of","subject":"866924","object":"866933","constraint_items":[{"key":"te_code_required","value":"A*"},{"key":"ingredient_match","value":"metoprolol succinate"},{"key":"dose_form_match","value":"Extended Release Oral Tablet"}],"citations":[{"source":"rxnorm","identifier":"RxCUI:866924"},{"source":"orange_book","identifier":"OB:ANDA076510:AB"}]},
+
+    {"edge_id":"E010","relation":"nti_pair_unsafe","subject":"866924","object":"866516","constraint_items":[{"key":"reason","value":"different salt and release form"},{"key":"succinate_form","value":"Extended Release"},{"key":"tartrate_form","value":"Immediate Release"},{"key":"dose_frequency_succinate","value":"once daily"},{"key":"dose_frequency_tartrate","value":"twice daily"}],"citations":[{"source":"rxnorm","identifier":"RxCUI:866924"},{"source":"rxnorm","identifier":"RxCUI:866516"},{"source":"primekg","identifier":"ISMP:confused-pair:metoprolol-salt"}]},
+
+    {"edge_id":"E011","relation":"nti_pair_unsafe","subject":"832701","object":"832611","constraint_items":[{"key":"reason","value":"AB-subset mismatch"},{"key":"cardizem_cd_te","value":"AB1"},{"key":"dilacor_xr_te","value":"AB3"},{"key":"rule","value":"AB1 and AB3 are not bioequivalent to each other; same ingredient + strength + form, distinct pharmacokinetic curves"}],"citations":[{"source":"orange_book","identifier":"OB:NDA020062:AB1"},{"source":"orange_book","identifier":"OB:NDA020092:AB3"}]},
+
+    {"edge_id":"E012","relation":"nti_pair_unsafe","subject":"832701","object":"832623","constraint_items":[{"key":"reason","value":"AB-subset mismatch"},{"key":"cardizem_cd_te","value":"AB1"},{"key":"tiazac_te","value":"AB2"}],"citations":[{"source":"orange_book","identifier":"OB:NDA020062:AB1"},{"source":"orange_book","identifier":"OB:NDA020401:AB2"}]},
+
+    {"edge_id":"E013","relation":"nti_pair_unsafe","subject":"993691","object":"993541","constraint_items":[{"key":"reason","value":"different release profile"},{"key":"xl_release","value":"24 HR Extended Release"},{"key":"sr_release","value":"12 HR Extended Release"},{"key":"dose_frequency_xl","value":"once daily"},{"key":"dose_frequency_sr","value":"twice daily"}],"citations":[{"source":"rxnorm","identifier":"RxCUI:993691"},{"source":"rxnorm","identifier":"RxCUI:993541"},{"source":"primekg","identifier":"FDA:withdrawal:Budeprion-XL-300-2012"}]},
+
+    {"edge_id":"E020","relation":"is_therapeutic_alt_of","subject":"855332","object":"1364430","constraint_items":[{"key":"requires_prescriber","value":"true"},{"key":"reason","value":"different drug class: warfarin (vitamin K antagonist) vs apixaban (direct factor Xa inhibitor)"},{"key":"different_monitoring","value":"warfarin requires INR; DOACs do not"},{"key":"different_reversal","value":"warfarin: vitamin K / PCC; apixaban: andexanet alfa"}],"citations":[{"source":"primekg","identifier":"DrugCentral:warfarin"},{"source":"primekg","identifier":"DrugCentral:apixaban"}]},
+
+    {"edge_id":"E030","relation":"contraindicated_with_allergy","subject":"1191","object":"sulfa","constraint_items":[{"key":"cross_reactivity","value":["sulfa","sulfonamide"]},{"key":"severity","value":"absolute"}],"citations":[{"source":"primekg","identifier":"SIDER:sulfamethoxazole:hypersensitivity"}]},
+
+    {"edge_id":"E040","relation":"requires_prescriber_notice","subject":"892244","object":"966222","constraint_items":[{"key":"nti_class","value":"thyroid"},{"key":"rule","value":"levothyroxine is FDA AB-rated but ATA/AACE recommend brand consistency; many state laws require prescriber notification on substitution"},{"key":"age_threshold","value":65}],"citations":[{"source":"primekg","identifier":"ATA:levothyroxine:NTI"},{"source":"orange_book","identifier":"OB:ANDA040796:AB"}]},
+    {"edge_id":"E041","relation":"requires_prescriber_notice","subject":"855332","object":"855334","constraint_items":[{"key":"nti_class","value":"anticoagulant"},{"key":"rule","value":"warfarin is NTI; brand consistency recommended"}],"citations":[{"source":"orange_book","identifier":"OB:ANDA075888:AB"}]},
+
+    {"edge_id":"E050","relation":"dose_adjust_renal","subject":"1364430","object":"egfr","constraint_items":[{"key":"egfr_threshold","value":30},{"key":"action_below_threshold","value":"reduce dose to 2.5 MG BID"}],"citations":[{"source":"primekg","identifier":"FDA:apixaban:label:renal"}]}
+  ]
+}

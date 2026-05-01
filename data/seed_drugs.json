@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "description": "Hand-curated minimal drug set covering the SPEC §8 red-team scenarios + safe-substitution baselines. Sources: RxNorm (RxCUIs), FDA Orange Book (TE codes), domain literature (NTI flags, ER/IR pairs). ~50 drugs / ~30 ingredients. Production builds replace this with the full ingest pipeline (scripts/ingest_*.py).",
+    "data_versions": {"rxnorm": "2026-04-curated", "orange_book": "2026-04-curated", "primekg": "v2.1-curated"},
+    "license": "Curated metadata. RxCUIs and OB Appl_No are public-domain identifiers."
+  },
+  "drugs": [
+    {"rxcui":"617314","name":"atorvastatin 40 MG Oral Tablet [Lipitor]","tty":"SBD","ingredient_in":"atorvastatin","strength":"40 MG","dose_form":"Oral Tablet","te_code":null,"is_brand":true,"appl_no":"NDA020702","nti":false},
+    {"rxcui":"617318","name":"atorvastatin 40 MG Oral Tablet","tty":"SCD","ingredient_in":"atorvastatin","strength":"40 MG","dose_form":"Oral Tablet","te_code":"AB","is_brand":false,"appl_no":"ANDA090548","nti":false},
+
+    {"rxcui":"206764","name":"amlodipine 10 MG Oral Tablet [Norvasc]","tty":"SBD","ingredient_in":"amlodipine","strength":"10 MG","dose_form":"Oral Tablet","te_code":null,"is_brand":true,"appl_no":"NDA019787","nti":false},
+    {"rxcui":"197361","name":"amlodipine 10 MG Oral Tablet","tty":"SCD","ingredient_in":"amlodipine","strength":"10 MG","dose_form":"Oral Tablet","te_code":"AB","is_brand":false,"appl_no":"ANDA076418","nti":false},
+
+    {"rxcui":"314076","name":"lisinopril 10 MG Oral Tablet","tty":"SCD","ingredient_in":"lisinopril","strength":"10 MG","dose_form":"Oral Tablet","te_code":"AB","is_brand":false,"appl_no":"ANDA074758","nti":false},
+    {"rxcui":"104377","name":"lisinopril 10 MG Oral Tablet [Prinivil]","tty":"SBD","ingredient_in":"lisinopril","strength":"10 MG","dose_form":"Oral Tablet","te_code":null,"is_brand":true,"appl_no":"NDA019558","nti":false},
+
+    {"rxcui":"866924","name":"metoprolol succinate 50 MG Extended Release Oral Tablet","tty":"SCD","ingredient_in":"metoprolol succinate","strength":"50 MG","dose_form":"Extended Release Oral Tablet","te_code":"AB","is_brand":false,"appl_no":"ANDA076510","nti":false},
+    {"rxcui":"866933","name":"metoprolol succinate 50 MG Extended Release Oral Tablet [Toprol XL]","tty":"SBD","ingredient_in":"metoprolol succinate","strength":"50 MG","dose_form":"Extended Release Oral Tablet","te_code":null,"is_brand":true,"appl_no":"NDA019962","nti":false},
+    {"rxcui":"866516","name":"metoprolol tartrate 25 MG Oral Tablet","tty":"SCD","ingredient_in":"metoprolol tartrate","strength":"25 MG","dose_form":"Oral Tablet","te_code":"AB","is_brand":false,"appl_no":"ANDA070931","nti":false},
+    {"rxcui":"866511","name":"metoprolol tartrate 50 MG Oral Tablet [Lopressor]","tty":"SBD","ingredient_in":"metoprolol tartrate","strength":"50 MG","dose_form":"Oral Tablet","te_code":null,"is_brand":true,"appl_no":"NDA017963","nti":false},
+
+    {"rxcui":"832701","name":"diltiazem hydrochloride 240 MG Extended Release Oral Capsule [Cardizem CD]","tty":"SBD","ingredient_in":"diltiazem hydrochloride","strength":"240 MG","dose_form":"Extended Release Oral Capsule","te_code":"AB1","is_brand":true,"appl_no":"NDA020062","nti":false},
+    {"rxcui":"832623","name":"diltiazem hydrochloride 240 MG Extended Release Oral Capsule [Tiazac]","tty":"SBD","ingredient_in":"diltiazem hydrochloride","strength":"240 MG","dose_form":"Extended Release Oral Capsule","te_code":"AB2","is_brand":true,"appl_no":"NDA020401","nti":false},
+    {"rxcui":"832611","name":"diltiazem hydrochloride 240 MG Extended Release Oral Capsule [Dilacor XR]","tty":"SBD","ingredient_in":"diltiazem hydrochloride","strength":"240 MG","dose_form":"Extended Release Oral Capsule","te_code":"AB3","is_brand":true,"appl_no":"NDA020092","nti":false},
+
+    {"rxcui":"892244","name":"levothyroxine sodium 0.1 MG Oral Tablet [Synthroid]","tty":"SBD","ingredient_in":"levothyroxine sodium","strength":"0.1 MG","dose_form":"Oral Tablet","te_code":"AB","is_brand":true,"appl_no":"NDA021402","nti":true},
+    {"rxcui":"966222","name":"levothyroxine sodium 0.1 MG Oral Tablet","tty":"SCD","ingredient_in":"levothyroxine sodium","strength":"0.1 MG","dose_form":"Oral Tablet","te_code":"AB","is_brand":false,"appl_no":"ANDA040796","nti":true},
+
+    {"rxcui":"855332","name":"warfarin sodium 5 MG Oral Tablet [Coumadin]","tty":"SBD","ingredient_in":"warfarin sodium","strength":"5 MG","dose_form":"Oral Tablet","te_code":"AB","is_brand":true,"appl_no":"NDA009218","nti":true},
+    {"rxcui":"855334","name":"warfarin sodium 5 MG Oral Tablet","tty":"SCD","ingredient_in":"warfarin sodium","strength":"5 MG","dose_form":"Oral Tablet","te_code":"AB","is_brand":false,"appl_no":"ANDA075888","nti":true},
+    {"rxcui":"1364430","name":"apixaban 5 MG Oral Tablet [Eliquis]","tty":"SBD","ingredient_in":"apixaban","strength":"5 MG","dose_form":"Oral Tablet","te_code":null,"is_brand":true,"appl_no":"NDA202155","nti":false},
+
+    {"rxcui":"993691","name":"bupropion hydrochloride 300 MG Extended Release Oral Tablet","tty":"SCD","ingredient_in":"bupropion hydrochloride","strength":"300 MG","dose_form":"24 HR Extended Release Oral Tablet","te_code":"AB","is_brand":false,"appl_no":"ANDA078375","nti":false},
+    {"rxcui":"993690","name":"bupropion hydrochloride 300 MG Extended Release Oral Tablet [Wellbutrin XL]","tty":"SBD","ingredient_in":"bupropion hydrochloride","strength":"300 MG","dose_form":"24 HR Extended Release Oral Tablet","te_code":null,"is_brand":true,"appl_no":"NDA021515","nti":false},
+    {"rxcui":"993541","name":"bupropion hydrochloride 150 MG Extended Release Oral Tablet","tty":"SCD","ingredient_in":"bupropion hydrochloride","strength":"150 MG","dose_form":"12 HR Extended Release Oral Tablet","te_code":"AB","is_brand":false,"appl_no":"ANDA075162","nti":false},
+
+    {"rxcui":"1191","name":"sulfamethoxazole / trimethoprim 800 MG / 160 MG Oral Tablet [Bactrim DS]","tty":"SBD","ingredient_in":"sulfamethoxazole","strength":"800 MG / 160 MG","dose_form":"Oral Tablet","te_code":"AB","is_brand":true,"appl_no":"NDA017560","nti":false}
+  ]
+}
