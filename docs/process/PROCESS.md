@@ -15,7 +15,7 @@ Before any code or research, five scoping questions were asked and answered. Thi
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Working volume | `/Volumes/SSDRAID0/code/substituterx/` (per the SSDRAID0 = execution rule). |
+| 1 | Working volume | Project lives at the repo root; build artifacts isolated to `.venv/` and `audit_logs/`. |
 | 2 | Stack | Python 3.11 prototype. Refactor path to .NET 8 + Next.js + Azure OpenAI is documented in SPEC §10. |
 | 3 | Scope cut | Read-only advisory; one resident profile per call; ~50 drugs covering the dangerous-substitution red-team. |
 | 4 | Time budget | Work as fast as possible, no pacing. (We did.) |
