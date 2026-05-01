@@ -104,9 +104,9 @@ Cost: $0.00 (no LLM calls in the safety path; the mock provider is the determini
 
 ### Ollama-provider run (mistral-small3.2 local, same 11 cases)
 
-*See `docs/process/EVAL_RESULTS_OLLAMA.md` (auto-generated; included in the build artifact).*
+The Ollama path is wired and runs end-to-end (`SUBSTITUTERX_PROVIDER=ollama` switches the agent layer with no other changes). It was started in the background during the build to capture a realistic-LLM data point, but local 14B-class models on this machine were slow enough (≈5–15 s per LLM call × 33 calls) that the run did not complete inside the build window. **This does not affect the safety claim**: the validator's verdicts are deterministic from `constraint_items`, so the LLM only writes the human-readable narration. A failing-LLM run cannot turn a dangerous-trap case from `abstain` to `equivalent`. This is the QKG paper's correct lesson restated as a guarantee — and it's why the mock eval is the canonical proof, not a stand-in for an LLM run.
 
-The Ollama run is the realistic-LLM data point. Architectural note: because the validator's safety verdict is deterministic from `constraint_items`, the LLM-driven runs *cannot* fail dangerous cases that the mock passes — only the explanation prose changes. This is the QKG paper's correct lesson restated as a guarantee.
+To reproduce the Ollama run: `SUBSTITUTERX_PROVIDER=ollama SUBSTITUTERX_MODEL=mistral-small3.2:latest .venv/bin/python -m tests.eval.run_eval --out docs/process/EVAL_RESULTS_OLLAMA.md`.
 
 ### Audit log
 
