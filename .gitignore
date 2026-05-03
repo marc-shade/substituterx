@@ -14,3 +14,7 @@ node_modules/
 .DS_Store
 audit_logs/
 *.egg-info/
+
+# Stray runtime artefacts from agent tooling
+$HOME/
+.claude/

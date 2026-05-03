@@ -104,7 +104,7 @@ class ValidatorReport(BaseModel):
 
 class AuditFlag(BaseModel):
     edge_id: str
-    reason: Literal["unsourced_threshold", "unsourced_entity", "classifier_judged_parametric"]
+    reason: Literal["unsourced_threshold", "unsourced_entity", "unsourced_ethos_phrase", "classifier_judged_parametric"]
     detail: str
 
 

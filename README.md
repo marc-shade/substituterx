@@ -80,8 +80,10 @@ Latest run (mock + medgemma single + medgemma+qwen3 hybrid): **33/33 across all 
 |---|---|---|---|---|---|
 | `mock` | deterministic | deterministic | deterministic | <1 s | $0 |
 | `medgemma` | medgemma 4B | medgemma 4B | medgemma 4B | ~70 s | $0 |
-| `hybrid` | medgemma 4B | medgemma 4B | qwen3 14B | ~240 s | $0 |
+| **`hybrid`** ★ | medgemma 4B | medgemma 4B | qwen3 14B | ~240 s | $0 |
 | `anthropic` | Claude Sonnet 4.6 | Claude Sonnet 4.6 | Claude Sonnet 4.6 | ~30 s | metered |
+
+★ **Recommended for any non-mock run.** Cross-family auditing — qwen3 reviewing medgemma's narration — reduces shared rhetorical priors. Same-family setups risk the Auditor accepting "agree-and-counterpoint" or effort-transparency phrasing the Validator inserted under stress (see `docs/research/05_genai_persuasion_and_trendslop.md`).
 
 ## Repo layout
 
