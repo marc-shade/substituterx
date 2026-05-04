@@ -33,7 +33,7 @@ A dangerous-trap regression in any provider mode blocks the build.
 ## Filing issues
 
 Include:
-- Provider mode (`mock` / `ollama` / `anthropic`)
+- Provider mode (`mock` / `ollama`)
 - Model name
 - The bottle / MAR / resident_id triple
 - The audit log lines for the run (filter by `run_id`)

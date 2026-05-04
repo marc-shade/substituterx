@@ -26,10 +26,15 @@ A four-agent loop adapted from Liu et al., *Quantum Knowledge Graph: Modeling Co
 
 | Agent | Cognitive load | Implementation |
 |---|---|---|
-| **Reasoner** | Extract structured claims from free-text bottle/MAR labels | LLM (medgemma 4B by default) |
+| **Reasoner** | Extract structured claims from free-text bottle/MAR labels | Local LLM (medgemma 4B by default) |
 | **Context Extractor** | Build resident context vector P from profile store | Pure data lookup (no LLM) |
-| **Validator** | Retrieve KG edges + their `constraint_items`, evaluate against P | Deterministic rule engine + LLM narrator |
-| **Auditor** | Detect parametric leakage in the validator's reasoning trace | Regex + LLM-classifier pass |
+| **Validator** | Retrieve KG edges + their `constraint_items`, evaluate against P | Deterministic rule engine + local-LLM narrator |
+| **Auditor** | Detect parametric leakage in the validator's reasoning trace | Regex + local-LLM classifier pass |
+
+**Local-only by design.** The application ships no cloud LLM client. All inference
+runs against your configured Ollama host (default `http://localhost:11434`) or the
+deterministic Mock provider. The contract is enforced by `tests/test_local_only.py`
+and verified by `scripts/verify_local_only.sh` — see [§Local-only verification](#local-only-verification) below.
 
 The orchestrator wires Reasoner → Validator → Auditor → revise. Hard guardrails on `nti_pair_unsafe`, `contraindicated_with_allergy`, `requires_prescriber_notice` route to abstain with **"Call the pharmacy."**
 
@@ -47,10 +52,10 @@ uv pip install -e ".[dev]"
 uv pip install streamlit
 cp .env.example .env
 
-# Pick a provider:
+# Pick a provider (both run on your machine — no cloud calls):
 export SUBSTITUTERX_PROVIDER=mock                              # deterministic, $0
 # or
-export SUBSTITUTERX_PROVIDER=ollama                            # local LLM
+export SUBSTITUTERX_PROVIDER=ollama                            # local LLM via Ollama
 export SUBSTITUTERX_MODEL_REASONER=medgemma1.5:4b-it-q8_0
 export SUBSTITUTERX_MODEL_VALIDATOR=medgemma1.5:4b-it-q8_0
 export SUBSTITUTERX_MODEL_AUDITOR=qwen3:14b-q8_0
@@ -74,16 +79,37 @@ See [`docs/process/RUNBOOK.md`](docs/process/RUNBOOK.md) for full details.
 
 Latest run (mock + medgemma single + medgemma+qwen3 hybrid): **33/33 across all three modes**. See [`docs/process/EVAL_ABLATION.md`](docs/process/EVAL_ABLATION.md).
 
-## Provider modes
+## Provider modes (all local)
 
 | Mode | Reasoner | Validator | Auditor | Wall-clock | Cost |
 |---|---|---|---|---|---|
 | `mock` | deterministic | deterministic | deterministic | <1 s | $0 |
 | `medgemma` | medgemma 4B | medgemma 4B | medgemma 4B | ~70 s | $0 |
 | **`hybrid`** ★ | medgemma 4B | medgemma 4B | qwen3 14B | ~240 s | $0 |
-| `anthropic` | Claude Sonnet 4.6 | Claude Sonnet 4.6 | Claude Sonnet 4.6 | ~30 s | metered |
 
 ★ **Recommended for any non-mock run.** Cross-family auditing — qwen3 reviewing medgemma's narration — reduces shared rhetorical priors. Same-family setups risk the Auditor accepting "agree-and-counterpoint" or effort-transparency phrasing the Validator inserted under stress (see `docs/research/05_genai_persuasion_and_trendslop.md`).
+
+## Local-only verification
+
+This codebase ships **no cloud LLM client** by design. Safety, security, and privacy
+guarantees fall out of that single property: no API keys, no usage metering, no
+prompt or PHI ever leaves the operator's machine.
+
+The contract is enforced and verifiable:
+
+```bash
+# 1) No cloud SDK in dependencies, no AnthropicProvider/AzureProvider in source.
+.venv/bin/python -m pytest tests/test_local_only.py -v
+
+# 2) End-to-end: run the eval gate with the wider network blocked.
+#    Only the configured Ollama host (default 127.0.0.1:11434) is reachable.
+bash scripts/verify_local_only.sh
+```
+
+`tests/test_local_only.py` asserts: `anthropic` is not importable, `provider.py`
+defines no class whose name contains `Anthropic`/`Azure`/`OpenAI`, and `get_provider`
+only ever returns `OllamaProvider` or `MockProvider`. Any future regression would
+fail the gate before merge.
 
 ## Repo layout
 

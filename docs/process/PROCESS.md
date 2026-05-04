@@ -16,7 +16,7 @@ Before any code or research, five scoping questions were asked and answered. Thi
 | # | Question | Decision |
 |---|---|---|
 | 1 | Working volume | Project lives at the repo root; build artifacts isolated to `.venv/` and `audit_logs/`. |
-| 2 | Stack | Python 3.11 prototype. Refactor path to .NET 8 + Next.js + Azure OpenAI is documented in SPEC §10. |
+| 2 | Stack | Python 3.11 prototype, local-only by design. Inference on Ollama (default `127.0.0.1:11434`) or deterministic Mock. Production refactor path is on-prem (see §8). |
 | 3 | Scope cut | Read-only advisory; one resident profile per call; ~50 drugs covering the dangerous-substitution red-team. |
 | 4 | Time budget | Work as fast as possible, no pacing. (We did.) |
 | 5 | Process visibility | **Show the apparatus** — orchestrator prompts captured, agent transcripts logged, commit trailers reproducible. |
@@ -60,7 +60,7 @@ The build went in this order, deliberately:
 1. **Pydantic contracts** (`models.py`) before any code. Every agent boundary is typed. This is the .NET refactor seam.
 2. **JSON Lines audit log** (`audit_log.py`) before any agent. Every agent step is captured by `run_id`. The auditor reads from this; the eval harness reads from this.
 3. **KG store** (`kg.py`) with a **hand-curated 22-drug seed** covering all red-team scenarios. Production swaps the seed with the RxNorm Prescribable RRF + Orange Book ingest scripts.
-4. **Provider abstraction** (`provider.py`) supporting Anthropic, Ollama, and a deterministic Mock — selectable via env. The agent layer never imports a specific SDK.
+4. **Provider abstraction** (`provider.py`) supporting Ollama (local LLM) and a deterministic Mock — selectable via env. The agent layer never imports a specific provider class; it depends on the `LLMProvider` Protocol. No cloud LLM client ships with the codebase, and the contract is locked by `tests/test_local_only.py`.
 5. **Four agents** (`agents/{reasoner,extractor,validator,auditor,orchestrator}.py`).
 6. **API + CLI + UI** (`api.py`, `cli.py`, `ui.py`).
 7. **Eval harness** (`tests/eval/{cases,run_eval}.py`) with the asymmetric bar enforced as a CI gate.
@@ -166,30 +166,32 @@ These are the Claude Code primitives that compressed a typical 1-2 week prototyp
 3. **Word caps and falsification clauses on every fork prompt.** Forks were rewarded for compact, citation-rich output — and explicitly authorized to return null results.
 4. **Atomic commits with conventional trailers.** Every commit message names the lane (research / build / fix), the agent that did the work, and the verification mode.
 5. **CI-grade eval as a gate, not a report.** The eval harness exits non-zero on any dangerous-trap miss. A regression cannot land silently.
-6. **Provider abstraction.** When the Anthropic API key hit a billing wall, the build pivoted to Ollama and Mock without rewriting the agent layer. Provider-agnostic agent contracts is what the job description means by "fallbacks."
-7. **A typed contract layer.** `models.py` is the integration seam for the .NET 8 production refactor. Pydantic v2 models map 1:1 to C# records.
+6. **Provider abstraction.** Agents depend on the `LLMProvider` Protocol, not on any concrete client class. Local-only by design — Ollama for production-shape inference, Mock for CI gating; switching between them is one env var. Provider-agnostic agent contracts is what the job description means by "fallbacks."
+7. **A typed contract layer.** `models.py` is the integration seam for any future production refactor. Pydantic v2 models port mechanically to any other language's record/dataclass system.
 
 ## 7. What is *not* in this prototype (deliberately)
 
 - No real RxNorm / Orange Book / PrimeKG ingest. Ingest scripts are designed and documented in research files; the seed data is hand-curated to demo the architecture, not the dataset breadth.
-- No EHR / the LTC dispensing platform integration. The resident store is synthetic JSON; production replaces it with a the pharmacy↔facility comms channel adapter.
+- No EHR / the LTC dispensing platform integration. The resident store is synthetic JSON; production replaces it with a pharmacy↔facility comms channel adapter.
 - No HIPAA controls. UI mirrors production conventions (disclaimer, abstain banner, audit log) but synthetic data only.
-- No Azure deployment. The container image, Bicep templates, and Application Insights instrumentation belong in the .NET refactor.
+- No cloud deployment artifacts. The container image and orchestration manifests belong in the production package, not in this proof.
 - No live recall cross-check call to openFDA. Stubbed in the SPEC; one-line addition in `validator.py`.
 
 These are scoped out **on purpose** — the prototype is an architectural proof, not a feature push. Scope discipline is itself a deliverable.
 
-## 8. Production refactor map (production target → .NET 8 + Next.js + Azure)
+## 8. Production refactor map (on-prem / local-only)
+
+The production target preserves the local-only stance documented in SPEC §11 — no cloud LLM, no third-party hosted vector store, no PHI off-prem.
 
 | Prototype | Production target | Notes |
 |---|---|---|
-| `src/substituterx/models.py` (Pydantic) | C# records / `System.Text.Json` POCOs | 1:1 mapping; the typed contract is the seam |
-| `src/substituterx/agents/*` | .NET 8 minimal API services per agent | Each agent is its own deployable; orchestrator is a state-machine |
-| `src/substituterx/kg.py` (DuckDB) | **Cosmos DB Gremlin** or **Azure SQL Hyperscale** with a graph schema | Choose Gremlin for path queries, SQL if joining to dispensing tables |
-| `src/substituterx/provider.py` | Azure OpenAI client w/ private-endpoint policy | Same provider abstraction; different default backend |
-| `audit_logs/audit.jsonl` | Application Insights + Azure Data Explorer (Kusto) | KQL queries replace `grep run_id` |
-| Streamlit UI | Next.js 15 (App Router) + shadcn/ui | Caregiver UX needs offline-capable PWA path; React Native for the bedside tablet |
-| `tests/eval/run_eval.py` | GitHub Actions / Azure DevOps pipeline gating PR merges | Same asymmetric bar; same red-team cases |
+| `src/substituterx/models.py` (Pydantic) | Same Pydantic contracts, or mechanical port to another language's record/dataclass | The typed contract is the seam — language is incidental |
+| `src/substituterx/agents/*` | One service per agent if scaling demands it; otherwise keep the in-process orchestrator | The orchestrator is a state-machine, not a fan-out router |
+| `src/substituterx/kg.py` (DuckDB) | DuckDB (file-backed) or Postgres with a graph schema for larger deployments | DuckDB scales to ~10⁵ edges in-process; switch only when joins to dispensing tables demand it |
+| `src/substituterx/provider.py` | Same `LLMProvider` Protocol; backend swaps to vLLM / TGI / llama.cpp on dedicated GPU hardware | Inference stays on operator infrastructure; no client SDK changes |
+| `audit_logs/audit.jsonl` | Operator's existing structured-log stack (Loki, Splunk, ELK) | JSON-Lines is the universal interop format |
+| Streamlit UI | Next.js / React for production caregiver UX; offline-capable PWA path for bedside tablets | UI rewrite is decoupled from the agent layer |
+| `tests/eval/run_eval.py` | Self-hosted CI runner (GitHub Actions on a runner inside the operator's network, or Jenkins / Drone) gating merges | Same asymmetric bar; same red-team cases |
 
 ## 9. What a reviewing engineer should look at first
 
@@ -201,7 +203,7 @@ These are scoped out **on purpose** — the prototype is an architectural proof,
 
 ## 10. The honest list of what would be different next time
 
-- Build the Ollama provider before the Anthropic provider. The credit-wall pivot was avoidable with two minutes of upfront thinking.
+- Commit to local-only from day one. The build briefly carried a cloud-LLM provider that was never load-bearing; ripping it out at the end was an avoidable round-trip. The architecture didn't need it — the validator's safety verdicts are deterministic, the local 4B/14B models pass the eval, and PHI never wants to leave operator infrastructure.
 - Write the eval cases *first*, not after the build. The asymmetric bar would have driven KG-edge selection more cleanly.
 - Use a graph DB (Kùzu or Neo4j-lite) from the start. DuckDB worked for ~30 edges; at 50K edges (full PrimeKG diabetes subset) it would have wanted a graph index.
 - Move resident-context lookup behind an interface from day one. The pharmacy↔facility comms channel mock is the integration point and should be a protocol, not a concrete class.
@@ -223,7 +225,6 @@ After the eval bar was met and the demo was wired, the codebase was put through 
 
 ### What got cleaned
 
-- Removed unused `AnthropicProvider` import in `orchestrator.py`.
 - Removed dead `lower = user.lower()` in `provider.py::MockProvider.call_json`.
 - Split a multi-import (`E401`), an inline-semicolon (`E702`), a lambda assignment (`E731`); renamed ambiguous `l` (`E741`).
 - Auto-removed 7 stale `# noqa` directives (`RUF100`).

@@ -12,7 +12,7 @@ from ..audit_log import AuditLog
 from ..models import (
     BottleLabel, MAREntry, ReasonerClaims, Mechanism, Claim,
 )
-from ..provider import AnthropicProvider
+from ..provider import LLMProvider
 
 
 SYSTEM = """You are the Reasoner agent in a four-agent medication-reconciliation pipeline.
@@ -50,7 +50,7 @@ SCHEMA = """{
 
 
 class ReasonerAgent:
-    def __init__(self, provider: AnthropicProvider, audit: AuditLog) -> None:
+    def __init__(self, provider: LLMProvider, audit: AuditLog) -> None:
         self.provider = provider
         self.audit = audit
 

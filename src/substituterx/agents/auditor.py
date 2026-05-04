@@ -9,7 +9,7 @@ import re
 
 from ..audit_log import AuditLog
 from ..models import AuditFlag, AuditReport, ValidatorReport
-from ..provider import AnthropicProvider
+from ..provider import LLMProvider
 
 
 AUDITOR_SYSTEM = """You are the Auditor agent. You will see the validator's reasoning trace
@@ -64,7 +64,7 @@ ETHOS_PHRASES = [
 
 
 class AuditorAgent:
-    def __init__(self, provider: AnthropicProvider, audit: AuditLog) -> None:
+    def __init__(self, provider: LLMProvider, audit: AuditLog) -> None:
         self.provider = provider
         self.audit = audit
 

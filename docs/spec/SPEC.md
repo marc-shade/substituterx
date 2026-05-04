@@ -179,19 +179,29 @@ A single failure on a dangerous trap kills the prototype. The bar is asymmetric 
 - [x] Live recall cross-check at query time (openFDA enforcement)
 - [x] Abstain path for every failure mode (no context, no KG match, recall, NTI, leakage)
 - [x] UI disclaimer banner + per-result footer
-- [x] Provider-agnostic LLM layer (Anthropic / Azure OpenAI / Ollama)
+- [x] Provider-agnostic LLM layer (Ollama / Mock — local-only by design; no cloud client ships with the codebase)
 - [x] Tenacity-based retry with explicit failure cap (no silent fallback)
 - [x] Cost + latency captured per run
 - [x] Eval harness as CI gate
-- [ ] *Production gaps documented for engineering review* (HIPAA, EHR integration, real RxNorm full subscription via UMLS, multi-tenant, rate limiting, Azure deployment)
+- [x] Local-only contract test (`tests/test_local_only.py`) — fails the build if any cloud provider sneaks back in
+- [ ] *Production gaps documented for engineering review* (HIPAA, EHR integration, real RxNorm full subscription via UMLS, multi-tenant, rate limiting, on-prem deployment topology)
 
 ## 10. Stack decision
 
-Prototype: **Python 3.11**, FastAPI, Pydantic v2, DuckDB, Anthropic SDK + Azure OpenAI compat shim. UI: minimal Streamlit (or HTMX) — demo-grade only. *User decision, see PROCESS.md §0.*
+Prototype: **Python 3.11**, FastAPI, Pydantic v2, DuckDB, Ollama (local LLM) + deterministic Mock. UI: minimal Streamlit — demo-grade only. *User decision, see PROCESS.md §0.* No cloud LLM or vector-search dependency — see §11 for the rationale.
 
-Refactor path to production: **.NET 8 minimal API** for the validator service, **Next.js 15** for the caregiver UI, **Azure OpenAI** for LLM, **Azure AI Search** for RxNorm/Orange Book retrieval, **Cosmos DB Gremlin** for the KG. The agent contracts in §6 are the integration seam; nothing in §6 depends on Python.
+Refactor path to production preserves the local-only stance: a containerised on-prem deployment (FastAPI + the same Ollama backend, optionally swapped for vLLM/TGI on dedicated GPU hardware), Postgres or DuckDB (with a graph schema) for the KG, structured JSON-Lines audit logs forwarded to whatever observability stack the operator runs internally. The agent contracts in §6 are the integration seam — re-implementing the validator service in another language is mechanical because no §6 contract depends on the Python runtime or on any cloud-provider SDK.
 
-## 11. Open questions deferred to PROCESS.md retro
+## 11. Local-only architectural commitment
+
+The application ships **no cloud LLM client**. Inference happens on the configured Ollama host (default `127.0.0.1:11434`) or the deterministic Mock provider — that is the entire LLM-side network surface. Rationale, in priority order:
+
+1. **PHI-class data never leaves operator infrastructure.** Even though the demo seed uses synthetic residents, any production deployment touches real medication-administration records and resident profiles. A cloud LLM call moves prompt + context off-prem; that is a HIPAA-disclosure event that costs more in compliance work than the model-quality delta is worth.
+2. **No third-party availability dependency.** A pharmacy-facing reconciliation tool that becomes inert when an external API rate-limits, deprecates a model, or ships a breaking SDK update is not a tool — it is a liability. Local inference removes that failure mode.
+3. **Auditable network surface.** The contract is verifiable in CI (`tests/test_local_only.py`) and by inspection (`scripts/verify_local_only.sh` enumerates every outbound call site in the source tree). Reviewers do not have to take our word for it.
+4. **Safety verdict is deterministic anyway.** §6.3 — the validator's `EdgeVerdict.status` for any safety-class relation falls out of the constraint-item evaluators, not the LLM. Cloud-grade reasoning quality buys nothing on the path that matters; the LLM's job is narration and parametric-leakage detection, both of which a local 4B–14B model handles.
+
+## 12. Open questions deferred to PROCESS.md retro
 
 1. UMLS license requirement for full RxNorm in production — does the prospective employer already hold one?
 2. PrimeKG dataset license terms — confirm CC0 vs custom before redistribution.

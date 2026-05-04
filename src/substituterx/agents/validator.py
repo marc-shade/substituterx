@@ -13,7 +13,7 @@ from ..kg import KGStore, Edge
 from ..models import (
     Claim, Citation, EdgeVerdict, ResidentContextVector, ValidatorReport,
 )
-from ..provider import AnthropicProvider
+from ..provider import LLMProvider
 
 
 # Deterministic constraint evaluators -----------------------------------------
@@ -93,7 +93,7 @@ Output JSON: {"per_edge": [{"edge_id": "...", "reasoning": "..."}]}
 
 
 class ValidatorAgent:
-    def __init__(self, kg: KGStore, provider: AnthropicProvider, audit: AuditLog) -> None:
+    def __init__(self, kg: KGStore, provider: LLMProvider, audit: AuditLog) -> None:
         self.kg = kg
         self.provider = provider
         self.audit = audit

@@ -5,7 +5,8 @@
 - Python **3.11** (3.12+ should work but is not the test target)
 - [`uv`](https://docs.astral.sh/uv/) for dependency management
 - Optional: local [Ollama](https://ollama.com) with at least one reasoning-capable model
-- Optional: Anthropic API key (billable; off by default)
+
+This build is **local-only by design**. There are no cloud-provider integrations and no API keys to obtain. See [§Local-only verification in the README](../../README.md#local-only-verification).
 
 ## First-time setup
 
@@ -36,13 +37,7 @@ export SUBSTITUTERX_MODEL_REASONER=medgemma1.5:4b-it-q8_0
 export SUBSTITUTERX_MODEL_VALIDATOR=medgemma1.5:4b-it-q8_0
 export SUBSTITUTERX_MODEL_AUDITOR=qwen3:14b-q8_0
 
-# Anthropic — billable; explicit opt-in only.
-export SUBSTITUTERX_PROVIDER=anthropic
-export SUBSTITUTERX_MODEL=claude-sonnet-4-6
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# Auto (default): tries Ollama first, falls back to Mock.
-# Never auto-bills Anthropic.
+# Auto (default): probes the configured Ollama host once, falls back to Mock.
 unset SUBSTITUTERX_PROVIDER
 ```
 
