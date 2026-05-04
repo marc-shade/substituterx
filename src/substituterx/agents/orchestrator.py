@@ -75,6 +75,14 @@ class Orchestrator:
         run_id = new_run_id()
         t0 = time.time()
         total_cost = 0.0
+        # Edges added by the orchestrator's deterministic widenings (ingredient-
+        # class hop, resident-anchored safety widening) must NEVER be filtered out
+        # by the auditor's downgrade pass — they are constructed from
+        # constraint_items + the resident context vector, not from the LLM's
+        # reasoning, so "parametric leakage" does not apply. Without this set, an
+        # adversarial or miscalibrated auditor could silently drop E030 / E050
+        # and bypass the safety check.
+        deterministic_edge_ids: set[str] = set()
 
         def _p(stage: str, detail: str = ""):
             if progress:
@@ -130,6 +138,8 @@ class Orchestrator:
         # ---- Safety widening: ingredient-class hop for red-flag edges.
         # Even when the specific bottle/MAR RxCUIs have no direct edge, dangerous pairs
         # at the ingredient-class level (e.g. metoprolol tartrate ↔ succinate) must surface.
+        # Result is stashed for the auditor-bypass filter below — single KG query.
+        hop_edges: list = []
         if bottle.rxcui and mar.rxcui:
             hop_edges = self.kg.safety_edges_across_ingredients(bottle.rxcui, mar.rxcui)
             if hop_edges:
@@ -146,6 +156,7 @@ class Orchestrator:
                         f"{edge.relation} relation — "
                         + "; ".join(f"{ci.get('key')}={ci.get('value')}" for ci in edge.constraint_items)
                     )
+                    deterministic_edge_ids.add(edge.edge_id)
                     validator_report.edge_verdicts.append(EdgeVerdict(  # noqa: F821 — module-level import
                         edge_id=edge.edge_id, relation=edge.relation,
                         subject=edge.subject, object=edge.object,
@@ -193,6 +204,7 @@ class Orchestrator:
                 final_status = _aggregate(statuses)
                 if final_status != "contradicted":
                     continue
+                deterministic_edge_ids.add(edge.edge_id)
                 validator_report.edge_verdicts.append(EdgeVerdict(
                     edge_id=edge.edge_id, relation=edge.relation,
                     subject=edge.subject, object=edge.object,
@@ -212,15 +224,16 @@ class Orchestrator:
         audit_report, m3 = self.auditor.review(run_id, validator_report)
         total_cost += m3.get("cost_usd", 0.0)
 
-        # ---- Filter downgraded edges (but never downgrade ingredient-class hop red flags;
-        # those are deterministic safety widenings, not LLM-narrated claims).
-        hop_edge_ids = {e.edge_id for e in (
-            self.kg.safety_edges_across_ingredients(bottle.rxcui, mar.rxcui)
-            if bottle.rxcui and mar.rxcui else []
-        )}
+        # ---- Filter downgraded edges. Edges added by the orchestrator's
+        # deterministic widenings (ingredient-class hop, safety widening) are
+        # never filtered — their reasoning is built from `constraint_items` and
+        # the resident context vector, not the LLM, so the auditor's parametric-
+        # leakage signal does not apply. Without this carve-out, an adversarial
+        # or miscalibrated auditor could silently drop E030 / E050 below the
+        # >30% threshold and bypass the safety check.
         active_verdicts = [v for v in validator_report.edge_verdicts
                            if v.edge_id not in audit_report.downgraded_edge_ids
-                           or v.edge_id in hop_edge_ids]
+                           or v.edge_id in deterministic_edge_ids]
         _p("decide", "")
 
         # ---- Decide

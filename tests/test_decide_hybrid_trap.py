@@ -183,6 +183,99 @@ def test_find_by_name_rejects_unknown_drug_with_unit_collision(
     assert resp.abstain_reason == "no_kg_evidence"
 
 
+def test_paranoid_auditor_cannot_downgrade_safety_widening(
+    orch: Orchestrator,
+) -> None:
+    """Bug 14 regression: deterministic safety-widening edges (E030 allergy,
+    E050 renal) must NEVER be filtered out by the auditor's downgrade pass.
+    Their reasoning is built from constraint_items + resident context, not
+    LLM narration, so 'parametric leakage' doesn't apply.
+
+    Without the deterministic-edge bypass, a calibration-broken or adversarial
+    auditor that selectively downgrades the safety edge could silently bypass
+    the red-flag check (especially if the >30% downgrade-ratio threshold isn't
+    triggered)."""
+    from substituterx.agents.auditor import AuditorAgent
+    from substituterx.models import AuditFlag, AuditReport, BottleLabel, MAREntry, ValidatorReport
+
+    class _DowngradeOnly:
+        """Selectively downgrades only the safety edge — keeps the ratio low so
+        the >30% threshold doesn't catch it. Tests the edge-id-level bypass."""
+        provider = MockProvider()
+
+        def review(self, run_id: str, validator_report: ValidatorReport):
+            target = next(
+                (v for v in validator_report.edge_verdicts
+                 if v.relation == "contraindicated_with_allergy"),
+                None,
+            )
+            if target is None:
+                return AuditReport(leakage_detected=False), {"cost_usd": 0.0}
+            return AuditReport(
+                leakage_detected=True,
+                downgraded_edge_ids=[target.edge_id],
+                flags=[AuditFlag(
+                    edge_id=target.edge_id,
+                    reason="classifier_judged_parametric",
+                    detail="adversarial test stub",
+                )],
+            ), {"cost_usd": 0.0}
+
+    # Replace the auditor for this test only; everything else stays mock.
+    orch.auditor = _DowngradeOnly()  # type: ignore[assignment]
+
+    resp = orch.explain(
+        BottleLabel(label_text="Bactrim DS 800/160 mg"),
+        MAREntry(label_text="Bactrim DS 800/160 mg"),
+        "R-0004",
+    )
+    edge_ids = {v.edge_id for v in resp.edge_verdicts}
+    assert "E030" in edge_ids, (
+        f"E030 must survive auditor downgrade via deterministic-edge bypass; "
+        f"got active edges {edge_ids}"
+    )
+    e030 = next(v for v in resp.edge_verdicts if v.edge_id == "E030")
+    assert e030.status == "contradicted"
+    assert resp.verdict == "abstain", (
+        "Sulfa-allergic resident receiving Bactrim must abstain even if the "
+        "auditor tries to downgrade the allergy edge."
+    )
+
+    # Restore for any subsequent test using this orch instance
+    orch.auditor = AuditorAgent(orch.auditor.provider if hasattr(orch.auditor, "provider")
+                                else orch.reasoner.provider, orch.audit)
+
+
+def test_reasoner_llm_failure_falls_back_to_safe_path(
+    orch: Orchestrator,
+) -> None:
+    """Bug 15 regression: when the reasoner's LLM call raises (network outage,
+    JSON parse failure, schema mismatch), the orchestrator must NOT 500. The
+    reasoner falls back to empty claims; the orchestrator's `augment_claim`
+    step adds a bottle↔MAR claim from the KG-resolved RxCUIs and the verdict
+    flows through normally."""
+    from substituterx.models import BottleLabel, MAREntry
+
+    class _FailingProvider:
+        model = "always-explodes"
+        def call(self, *_args, **_kwargs):
+            raise RuntimeError("simulated network outage")
+        def call_json(self, *_args, **_kwargs):
+            raise RuntimeError("simulated JSON failure")
+
+    orch.reasoner.provider = _FailingProvider()  # type: ignore[assignment]
+
+    # SAFE-001 path. Reasoner explodes; orchestrator must still resolve
+    # via KG, run validator on E001, and return equivalent.
+    resp = orch.explain(
+        BottleLabel(label_text="atorvastatin 40 mg"),
+        MAREntry(label_text="Lipitor 40 mg"),
+        "R-0001",
+    )
+    assert resp.verdict == "equivalent"
+    assert any(v.edge_id == "E001" for v in resp.edge_verdicts)
+
+
 def test_data_versions_match_seed_metadata(orch: Orchestrator) -> None:
     """Bug 13 regression: response.data_versions must reflect what the seed
     actually loaded, not a hardcoded constant that can drift."""

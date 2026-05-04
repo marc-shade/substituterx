@@ -65,20 +65,35 @@ class ReasonerAgent:
             f"MAR RxCUI hint: {mar.rxcui or 'unknown'}\n\n"
             "Propose structured claims and the substitution mechanism."
         )
-        parsed, result = self.provider.call_json(SYSTEM, user, SCHEMA, max_tokens=800)
-        claims = ReasonerClaims(
-            equivalent=parsed.get("equivalent"),
-            mechanism=Mechanism(parsed.get("mechanism", "unknown")),
-            structured_claims=[Claim(**c) for c in parsed.get("structured_claims", [])],
-            confidence=float(parsed.get("confidence", 0.0)),
-        )
+        # The reasoner's job is structural extraction. Both the LLM call and the
+        # downstream Pydantic parsing can fail (network, schema mismatch, garbage
+        # JSON). Falling back to empty claims is the *safe* path: the orchestrator's
+        # `augment_claim` step adds a bottle↔MAR claim from the KG-resolved RxCUIs,
+        # the validator runs against that, and the safety widenings still fire. A
+        # raised exception would 500 the API instead — heavier than necessary.
+        try:
+            parsed, result = self.provider.call_json(SYSTEM, user, SCHEMA, max_tokens=800)
+            claims = ReasonerClaims(
+                equivalent=parsed.get("equivalent"),
+                mechanism=Mechanism(parsed.get("mechanism", "unknown")),
+                structured_claims=[Claim(**c) for c in parsed.get("structured_claims", [])],
+                confidence=float(parsed.get("confidence", 0.0)),
+            )
+            meta = {"input_tokens": result.input_tokens, "output_tokens": result.output_tokens,
+                    "model": result.model, "cost_usd": result.cost_usd}
+        except Exception as exc:
+            claims = ReasonerClaims(
+                equivalent=None, mechanism=Mechanism.UNKNOWN,
+                structured_claims=[], confidence=0.0,
+            )
+            meta = {"error": str(exc), "model": getattr(self.provider, "model", "?"),
+                    "cost_usd": 0.0}
         # Predicate distribution per run — surfaces Trendslop-style pull on which
         # relation the LLM proposes (Romasanta et al., HBR 2026). The orchestrator does
         # not act on this; it's an audit-trail signal for offline drift detection.
-        predicate_counts = dict(Counter(c.predicate for c in claims.structured_claims))
-        meta = {"input_tokens": result.input_tokens, "output_tokens": result.output_tokens,
-                "model": result.model, "cost_usd": result.cost_usd,
-                "predicate_distribution": predicate_counts}
+        meta["predicate_distribution"] = dict(
+            Counter(c.predicate for c in claims.structured_claims)
+        )
         self.audit.emit(run_id, "reasoner", "propose", {
             "bottle": bottle.model_dump(), "mar": mar.model_dump(),
             "claims": claims.model_dump(), **meta,
