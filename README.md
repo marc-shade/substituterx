@@ -162,3 +162,9 @@ Result: **all clean.** ruff passes, vulture clean, deptry clean, every file A-ra
 ## Process apparatus
 
 This project was built using a documented multi-agent workflow under Claude Code. The full apparatus — orchestrator prompts, sub-agent transcripts, commit trailers, eval traces, post-build code-quality sweep — is captured in [`docs/process/`](docs/process/). That apparatus is the deliverable.
+
+### How we don't ship vibe-coded slop
+
+The most load-bearing process artifact is [**`docs/process/AI_DEV_PROCESS.md`**](docs/process/AI_DEV_PROCESS.md). It walks through the *six rounds of post-build theater hunting* that found and fixed 21 distinct bugs (7 of them safety-critical "right answer, wrong reason" cases the original eval gate could not detect), the regression locks that prevent them from reappearing, and the verification gates that produce green status one can cite rather than infer.
+
+Every fix in that history is traceable to a commit, a falsifying scenario, and a test that fails without it. The methodology is the showcase.

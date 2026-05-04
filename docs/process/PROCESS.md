@@ -3,9 +3,16 @@
 *The meta-deliverable. The point of this document is not the prototype — it's how the prototype was built. If a reviewing engineer reads this and says "I could not have built this in a chat window," it has done its job.*
 
 **Author:** Marc Shade  
-**Date:** 2026-05-01  
+**Date:** 2026-05-01 (initial build) · 2026-05-04 (post-build verification)  
 **Build duration:** ~3 hours from cold start (research forks → spec → build → eval green)  
-**Lines of code:** ~1100 production Python + ~400 LOC tests/eval + ~1500 LOC docs
+**Lines of code:** ~1300 production Python + ~700 LOC tests/eval + ~2000 LOC docs
+
+> **Companion document:** [`AI_DEV_PROCESS.md`](AI_DEV_PROCESS.md) covers the
+> post-build *theater hunt* — six rounds of adversarial verification that
+> found 21 distinct bugs (7 of them safety-critical) and locked each fix
+> behind a regression test. That doc, together with the gates listed
+> below, is the primary evidence that this codebase is not vibe-coded
+> slop.
 
 ---
 
