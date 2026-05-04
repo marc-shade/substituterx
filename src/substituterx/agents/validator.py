@@ -39,12 +39,16 @@ def _eval_constraint(
                 "")
 
     if key == "ingredient_match":
-        if drug_subject and drug_object and drug_subject.ingredient_in == drug_object.ingredient_in:
+        if drug_subject is None or drug_object is None:
+            return "unknown", "subject or object drug unresolved; cannot compare ingredients", ""
+        if drug_subject.ingredient_in == drug_object.ingredient_in:
             return "supported", f"both ingredients = {value}", drug_subject.ingredient_in
         return "contradicted", "ingredients differ", ""
 
     if key == "dose_form_match":
-        if drug_subject and drug_object and drug_subject.dose_form == drug_object.dose_form:
+        if drug_subject is None or drug_object is None:
+            return "unknown", "subject or object drug unresolved; cannot compare dose forms", ""
+        if drug_subject.dose_form == drug_object.dose_form:
             return "supported", f"both dose forms = {value}", drug_subject.dose_form
         return "contradicted", "dose forms differ", ""
 
@@ -84,7 +88,15 @@ def _eval_constraint(
         return ("contradicted" if str(value).lower() == "true" else "supported",
                 "therapeutic interchange requires prescriber", str(value))
 
-    return "unknown", f"no deterministic evaluator for key={key}", ""
+    # Fall-through: keys without a dedicated evaluator are *informational
+    # decorators* — narrative detail attached to the edge that the caregiver
+    # benefits from seeing (e.g., dose_frequency_succinate, different_monitoring).
+    # Status is "unknown" so they never gate a verdict; reasoning is the actual
+    # value content (not a developer-facing "no evaluator" leak); matched_literal
+    # carries the value string so the auditor's regex pass treats any numbers /
+    # entities in the value as grounded.
+    val_str = str(value)
+    return "unknown", f"{key}: {val_str}", val_str
 
 
 def _aggregate(statuses: list[str]) -> str:

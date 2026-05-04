@@ -310,6 +310,47 @@ def test_seed_validation_rejects_malformed_citation(tmp_path: Path) -> None:
         kg.load_seed(drugs_path=drugs_path, edges_path=edges_path)
 
 
+def test_ingredient_and_dose_form_unknown_when_drug_unresolved() -> None:
+    """Bug 20 regression: ingredient_match and dose_form_match must return
+    'unknown' (not 'contradicted') when the subject or object drug isn't in
+    the KG. Same misattribution shape as Bug 19 — saying 'ingredients differ'
+    when we couldn't even look up the drug is a false negative on safety."""
+    from substituterx.agents.validator import _eval_constraint
+    from substituterx.models import ResidentContextVector
+
+    P = ResidentContextVector(resident_id="R", age=70, sex="M", egfr=80.0)
+    for key, value in (("ingredient_match", "atorvastatin"),
+                        ("dose_form_match", "Oral Tablet")):
+        status, _reason, matched = _eval_constraint(
+            key, value, drug_subject=None, drug_object=None, P=P,
+        )
+        assert status == "unknown", f"{key} with both None should be unknown, got {status}"
+        assert matched == ""
+
+
+def test_validator_narration_no_developer_leak(orch: Orchestrator) -> None:
+    """Bug 21 regression: validator narration must not leak developer-facing
+    strings like 'no deterministic evaluator for key=X'. Informational
+    constraint keys (no specific evaluator) must surface their actual value
+    content, both for caregiver clarity and so the auditor's regex pass
+    treats numbers/entities in the value as grounded."""
+    from substituterx.models import BottleLabel, MAREntry
+
+    resp = orch.explain(
+        BottleLabel(label_text="apixaban 5 mg"),
+        MAREntry(label_text="Coumadin 5 mg"),
+        "R-0003",
+    )
+    e020 = next(v for v in resp.edge_verdicts if v.edge_id == "E020")
+    assert "no deterministic evaluator" not in e020.reasoning, (
+        "developer-facing 'no deterministic evaluator' message leaked into "
+        f"user-facing reasoning: {e020.reasoning!r}"
+    )
+    # Real informational content must be present.
+    assert "warfarin" in e020.reasoning.lower()
+    assert "DOAC" in e020.reasoning or "factor Xa" in e020.reasoning
+
+
 def test_te_code_required_unknown_when_drug_unresolved() -> None:
     """Bug 19 regression: te_code_required with drug_subject=None must return
     'unknown' (couldn't look it up), not 'contradicted' (mis-attributing)."""
