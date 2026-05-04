@@ -21,7 +21,13 @@ from .reasoner import ReasonerAgent
 from .validator import ValidatorAgent, _aggregate, _eval_constraint
 
 
-DATA_VERSIONS = {"rxnorm": "2026-04-curated", "orange_book": "2026-04-curated", "primekg": "v2.1-curated"}
+def _data_versions_from(kg: KGStore) -> dict[str, str]:
+    """Read the actively-loaded seed's data_versions from the KG. Falls back to
+    `unknown` markers if the seed didn't declare any (so the response field is
+    never silently wrong about what's loaded)."""
+    return dict(kg.data_versions) or {
+        "rxnorm": "unknown", "orange_book": "unknown", "primekg": "unknown",
+    }
 
 
 def _resolve_rxcui(label: BottleLabel | MAREntry, kg: KGStore) -> str | None:
@@ -233,7 +239,7 @@ class Orchestrator:
             edge_verdicts=active_verdicts,
             audit_flags=audit_report,
             abstain_reason=abstain_reason,
-            data_versions=DATA_VERSIONS,
+            data_versions=_data_versions_from(self.kg),
             latency_ms=latency_ms,
             cost_usd=round(total_cost, 6),
         )
@@ -318,7 +324,7 @@ class Orchestrator:
             explanation=msg,
             audit_flags=AuditReport(leakage_detected=False),
             abstain_reason=reason,
-            data_versions=DATA_VERSIONS,
+            data_versions=_data_versions_from(self.kg),
             latency_ms=latency_ms,
             cost_usd=round(cost, 6),
         )

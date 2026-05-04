@@ -145,20 +145,50 @@ def run_mode(mode: ModeConfig, cases) -> ModeRun:
                     MAREntry(label_text=c.mar),
                     c.resident_id,
                 )
-                ok = resp.verdict == c.expected_verdict
+                verdict_ok = resp.verdict == c.expected_verdict
+                # Edge-fired check: if the case nominates an expected_edge_id,
+                # require it to be present in the response edges. For dangerous
+                # cases, also require status=contradicted (so we can't pass for
+                # the wrong reason — e.g. DANGER-006 abstaining `no_kg_evidence`
+                # when E030 should have fired). For safe cases, require
+                # status=supported.
+                edge_ok = True
+                edge_note = ""
+                if c.expected_edge_id:
+                    fired = next(
+                        (v for v in resp.edge_verdicts if v.edge_id == c.expected_edge_id),
+                        None,
+                    )
+                    if fired is None:
+                        edge_ok = False
+                        edge_note = f"expected edge {c.expected_edge_id} did not fire"
+                    elif c.category == "dangerous" and fired.status != "contradicted":
+                        edge_ok = False
+                        edge_note = (
+                            f"expected {c.expected_edge_id} contradicted, got {fired.status}"
+                        )
+                    elif c.category == "safe" and fired.status != "supported":
+                        edge_ok = False
+                        edge_note = (
+                            f"expected {c.expected_edge_id} supported, got {fired.status}"
+                        )
+                ok = verdict_ok and edge_ok
                 if ok:
                     pass_count[c.category] += 1
                 total_cost += (resp.cost_usd or 0.0)
+                note_text = edge_note or resp.explanation[:80]
                 rows.append(CaseRow(
                     case=c.case_id, category=c.category,
                     expected=c.expected_verdict, got=resp.verdict, ok=ok,
                     audit_leak=resp.audit_flags.leakage_detected,
                     latency_ms=resp.latency_ms, cost_usd=resp.cost_usd or 0.0,
-                    note=resp.explanation[:80],
+                    note=note_text,
                 ))
-                print(f"  [{mode.label}] [{'PASS' if ok else 'FAIL'}] {c.case_id} {c.category} "
+                status_tag = "PASS" if ok else ("FAIL-EDGE" if verdict_ok and not edge_ok else "FAIL")
+                print(f"  [{mode.label}] [{status_tag}] {c.case_id} {c.category} "
                       f"expected={c.expected_verdict} got={resp.verdict} "
-                      f"({resp.latency_ms}ms ${resp.cost_usd or 0:.4f})")
+                      f"({resp.latency_ms}ms ${resp.cost_usd or 0:.4f})"
+                      + (f" — {edge_note}" if edge_note else ""))
             except Exception as exc:
                 rows.append(CaseRow(
                     case=c.case_id, category=c.category,

@@ -159,6 +159,44 @@ def test_same_rxcui_fast_path_returns_equivalent(
     assert abstain_reason is None
 
 
+def test_find_by_name_rejects_unknown_drug_with_unit_collision(
+    orch: Orchestrator,
+) -> None:
+    """Bug 11 regression: query 'tacrolimus 1 mg' must not silently resolve
+    to levothyroxine just because '1' and 'mg' appear in the levothyroxine seed
+    name. The fix requires ≥1 informative (alpha, len≥4) token to match. The
+    orchestrator must abstain on tacrolimus rather than fabricate a verdict."""
+    from substituterx.models import BottleLabel, MAREntry
+
+    assert orch.kg.find_by_name("tacrolimus 1 mg") is None
+    assert orch.kg.find_by_name("Prograf 1 mg") is None
+    # Single-word legitimate queries still resolve.
+    assert orch.kg.find_by_name("Lipitor") is not None
+    assert orch.kg.find_by_name("atorvastatin") is not None
+
+    resp = orch.explain(
+        BottleLabel(label_text="tacrolimus 1 mg"),
+        MAREntry(label_text="Prograf 1 mg"),
+        "R-0001",
+    )
+    assert resp.verdict == "abstain"
+    assert resp.abstain_reason == "no_kg_evidence"
+
+
+def test_data_versions_match_seed_metadata(orch: Orchestrator) -> None:
+    """Bug 13 regression: response.data_versions must reflect what the seed
+    actually loaded, not a hardcoded constant that can drift."""
+    from substituterx.models import BottleLabel, MAREntry
+
+    resp = orch.explain(
+        BottleLabel(label_text="atorvastatin 40 mg"),
+        MAREntry(label_text="Lipitor 40 mg"),
+        "R-0001",
+    )
+    assert resp.data_versions == orch.kg.data_versions
+    assert resp.data_versions, "kg.data_versions empty — seed _meta missing or unread"
+
+
 def test_renal_dose_adjust_fires_when_egfr_below_threshold(
     orch: Orchestrator, tmp_path: Path
 ) -> None:

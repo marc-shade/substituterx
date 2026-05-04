@@ -47,6 +47,7 @@ class KGStore:
 
     def __init__(self, db_path: str | None = None) -> None:
         self.con = duckdb.connect(db_path or ":memory:")
+        self.data_versions: dict[str, str] = {}
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -72,8 +73,14 @@ class KGStore:
     def load_seed(self, drugs_path: Path | None = None, edges_path: Path | None = None) -> dict:
         drugs_path = drugs_path or (SEED_DIR / "seed_drugs.json")
         edges_path = edges_path or (SEED_DIR / "seed_edges.json")
-        drugs = json.loads(drugs_path.read_text())["drugs"]
-        edges = json.loads(edges_path.read_text())["edges"]
+        drugs_doc = json.loads(drugs_path.read_text())
+        edges_doc = json.loads(edges_path.read_text())
+        # data_versions are the authoritative source for what the seed claims to
+        # represent. Reading them here (instead of hardcoding in the orchestrator)
+        # means the response's `data_versions` always matches the loaded seed.
+        self.data_versions = dict(drugs_doc.get("_meta", {}).get("data_versions", {}))
+        drugs = drugs_doc["drugs"]
+        edges = edges_doc["edges"]
         for d in drugs:
             self.con.execute(
                 "INSERT OR REPLACE INTO drugs VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -129,35 +136,49 @@ class KGStore:
 
     def find_by_name(self, label_text: str) -> Drug | None:
         """Score-based word-token match. Returns None if no candidate clears the bar —
-        the orchestrator's abstain path handles missing RxCUI."""
+        the orchestrator's abstain path handles missing RxCUI.
+
+        Matches require at least one *informative* token (alphabetic, length ≥4) to
+        appear in the candidate's name. Without that constraint, queries like
+        `"tacrolimus 1 mg"` would false-match levothyroxine (whose seeded name
+        contains `1` and `mg`). Total-token score is used only as a tie-breaker
+        among candidates that already cleared the informative-token bar.
+        """
         raw = [t for t in re.split(r"\W+", label_text.lower()) if len(t) > 1]
         if not raw:
             return None
         tokens = self._expand_unit_tokens(raw)
+        info_tokens = [t for t in tokens if t.isalpha() and len(t) >= 4]
+        if not info_tokens:
+            # Query has no drug-name fragment (e.g., "1 mg" alone). Abstain.
+            return None
+
         rows = self.con.execute("SELECT * FROM drugs").fetchall()
 
         def name_words(name: str) -> set[str]:
             return {w for w in re.split(r"\W+", name.lower()) if w}
 
-        threshold = max(2, int(0.6 * len(tokens)))
-        scored: list[tuple[int, Drug]] = []
+        scored: list[tuple[int, int, Drug]] = []
         for row in rows:
             d = Drug(*row)
             nw = name_words(d.name)
-            score = sum(1 for t in tokens if t in nw)
-            if score >= threshold:
-                scored.append((score, d))
+            info_score = sum(1 for t in info_tokens if t in nw)
+            if info_score == 0:
+                continue
+            total_score = sum(1 for t in tokens if t in nw)
+            scored.append((info_score, total_score, d))
         if not scored:
             return None
 
         ltl = label_text.lower()
         is_brand_query = any(re.search(rf"\b{b}\b", ltl) for b in self._BRAND_KEYWORDS)
         scored.sort(key=lambda sd: (
-            -sd[0],
-            0 if sd[1].is_brand == is_brand_query else 1,
-            len(sd[1].name),
+            -sd[0],         # informative-token matches first
+            -sd[1],         # then total-token matches as a tie-breaker
+            0 if sd[2].is_brand == is_brand_query else 1,
+            len(sd[2].name),
         ))
-        return scored[0][1]
+        return scored[0][2]
 
     def edges_between(self, a: str, b: str) -> list[Edge]:
         rows = self.con.execute(

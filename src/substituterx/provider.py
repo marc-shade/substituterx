@@ -120,7 +120,12 @@ class MockProvider:
         # Deterministic shapes; the actual decision lives in the validator/orchestrator.
         result = LLMResult(text="(mock)", input_tokens=0, output_tokens=0, model=self.model, cost_usd=0.0)
 
-        if '"per_edge"' in schema_hint or "edge_id" in schema_hint and "leakage" not in schema_hint:
+        # Schema-shape detection. Parens are explicit because Python's `or`/`and`
+        # precedence (`A or B and C` parses as `A or (B and C)`) is easy to misread
+        # — a future edit shouldn't have to reason about precedence to be correct.
+        if ('"per_edge"' in schema_hint) or (
+            "edge_id" in schema_hint and "leakage" not in schema_hint
+        ):
             # Validator narrator
             return ({"per_edge": []}, result)
         if "leakage_detected" in schema_hint:
