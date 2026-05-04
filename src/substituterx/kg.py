@@ -81,6 +81,18 @@ class KGStore:
         self.data_versions = dict(drugs_doc.get("_meta", {}).get("data_versions", {}))
         drugs = drugs_doc["drugs"]
         edges = edges_doc["edges"]
+        # Validate citation shapes at load time — catches malformed seed data
+        # before the first request, rather than 500-ing every request whose
+        # validator/orchestrator path hits the bad citation.
+        from .models import Citation as _Citation  # local import to avoid circular
+        for e in edges:
+            for c in e.get("citations", []):
+                try:
+                    _Citation(**c)
+                except Exception as exc:
+                    raise ValueError(
+                        f"seed citation invalid for edge {e.get('edge_id', '?')}: {c} ({exc})"
+                    ) from exc
         for d in drugs:
             self.con.execute(
                 "INSERT OR REPLACE INTO drugs VALUES (?,?,?,?,?,?,?,?,?,?)",

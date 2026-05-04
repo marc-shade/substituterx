@@ -154,7 +154,18 @@ def run_mode(mode: ModeConfig, cases) -> ModeRun:
                 # status=supported.
                 edge_ok = True
                 edge_note = ""
-                if c.expected_edge_id:
+                if c.category == "leakage":
+                    # Leakage cases pose questions whose drugs are NOT in the KG.
+                    # The system MUST abstain by absence of evidence — any edge
+                    # that fires would be parametric leakage from the LLM. Lock
+                    # zero-edges as part of the gate.
+                    if resp.edge_verdicts:
+                        edge_ok = False
+                        edge_note = (
+                            f"leakage case must produce zero edges; got "
+                            f"{[v.edge_id for v in resp.edge_verdicts]}"
+                        )
+                elif c.expected_edge_id:
                     fired = next(
                         (v for v in resp.edge_verdicts if v.edge_id == c.expected_edge_id),
                         None,

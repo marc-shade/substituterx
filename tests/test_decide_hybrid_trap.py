@@ -276,6 +276,55 @@ def test_reasoner_llm_failure_falls_back_to_safe_path(
     assert any(v.edge_id == "E001" for v in resp.edge_verdicts)
 
 
+def test_seed_validation_rejects_malformed_citation(tmp_path: Path) -> None:
+    """Bug 18 regression: malformed citations must fail at load_seed time, not
+    at request time. A 500 on every request because of a typo'd source string
+    would be the worst possible failure mode."""
+    import json
+    from substituterx.kg import KGStore
+
+    bad_drugs = {
+        "_meta": {"data_versions": {"rxnorm": "test"}},
+        "drugs": [{
+            "rxcui": "1", "name": "fake", "tty": "SCD", "ingredient_in": "fake",
+            "strength": "1mg", "dose_form": "Oral", "te_code": None,
+            "is_brand": False, "appl_no": None, "nti": False,
+        }],
+    }
+    bad_edges = {
+        "_meta": {"edge_count": 1},
+        "edges": [{
+            "edge_id": "BAD", "relation": "is_generic_of",
+            "subject": "1", "object": "1",
+            "constraint_items": [],
+            "citations": [{"source": "not_a_real_source", "identifier": "X"}],
+        }],
+    }
+    drugs_path = tmp_path / "drugs.json"
+    edges_path = tmp_path / "edges.json"
+    drugs_path.write_text(json.dumps(bad_drugs))
+    edges_path.write_text(json.dumps(bad_edges))
+
+    kg = KGStore()
+    with pytest.raises(ValueError, match="seed citation invalid"):
+        kg.load_seed(drugs_path=drugs_path, edges_path=edges_path)
+
+
+def test_te_code_required_unknown_when_drug_unresolved() -> None:
+    """Bug 19 regression: te_code_required with drug_subject=None must return
+    'unknown' (couldn't look it up), not 'contradicted' (mis-attributing)."""
+    from substituterx.agents.validator import _eval_constraint
+    from substituterx.models import ResidentContextVector
+
+    P = ResidentContextVector(resident_id="R", age=70, sex="M", egfr=80.0)
+    status, reason, matched = _eval_constraint(
+        "te_code_required", "A*", drug_subject=None, drug_object=None, P=P,
+    )
+    assert status == "unknown"
+    assert "not resolved" in reason
+    assert matched == ""
+
+
 def test_data_versions_match_seed_metadata(orch: Orchestrator) -> None:
     """Bug 13 regression: response.data_versions must reflect what the seed
     actually loaded, not a hardcoded constant that can drift."""

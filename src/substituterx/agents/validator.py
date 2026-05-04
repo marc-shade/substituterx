@@ -28,9 +28,15 @@ def _eval_constraint(
     the constraint_item, even when the constraint value is a pattern/glob.
     """
     if key == "te_code_required":
-        if drug_subject and drug_subject.te_code and drug_subject.te_code.startswith("A"):
+        if drug_subject is None:
+            # Couldn't resolve the drug at all — report unknown rather than
+            # mis-attributing this as a TE-code mismatch.
+            return "unknown", "drug_subject not resolved; cannot evaluate TE code", ""
+        if drug_subject.te_code and drug_subject.te_code.startswith("A"):
             return "supported", f"TE code {drug_subject.te_code} is A-rated", drug_subject.te_code
-        return "contradicted", f"TE code {getattr(drug_subject,'te_code',None)} is not A-rated", ""
+        return ("contradicted",
+                f"TE code {drug_subject.te_code or 'absent'} is not A-rated",
+                "")
 
     if key == "ingredient_match":
         if drug_subject and drug_object and drug_subject.ingredient_in == drug_object.ingredient_in:
