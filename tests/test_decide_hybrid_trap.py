@@ -159,6 +159,42 @@ def test_same_rxcui_fast_path_returns_equivalent(
     assert abstain_reason is None
 
 
+def test_renal_dose_adjust_fires_when_egfr_below_threshold(
+    orch: Orchestrator, tmp_path: Path
+) -> None:
+    """Bug 6 regression: edges with relation `dose_adjust_renal` and object='egfr'
+    were never retrieved by `edges_between(a,b)`. After the safety-widening fix,
+    a resident with eGFR < threshold receiving the same drug on bottle and MAR
+    must abstain."""
+    from substituterx.models import BottleLabel, MAREntry, ResidentContextVector
+
+    class _Stub:
+        def __init__(self, ctx: ResidentContextVector):
+            self._ctx = ctx
+        def get(self, _rid):
+            return self._ctx
+        def all_ids(self):
+            return ["R-LOW"]
+
+    low_egfr = ResidentContextVector(
+        resident_id="R-LOW", age=80, sex="M", allergies=[], current_meds_rxcui=[],
+        conditions=["ckd"], egfr=22.0, nti_sensitive=False,
+    )
+    orch_low = Orchestrator(
+        orch.kg, _Stub(low_egfr), orch.reasoner.provider,  # type: ignore[arg-type]
+        AuditLog(tmp_path / "renal.jsonl"),
+    )
+    resp = orch_low.explain(
+        BottleLabel(label_text="apixaban 5 mg"),
+        MAREntry(label_text="Eliquis 5 mg"),
+        "R-LOW",
+    )
+    assert resp.verdict == "abstain"
+    edge_ids = {v.edge_id for v in resp.edge_verdicts}
+    assert "E050" in edge_ids, f"E050 (renal dose-adjust) must surface, got {edge_ids}"
+    assert resp.abstain_reason and "dose_adjust_renal" in resp.abstain_reason
+
+
 def test_allergy_edge_fires_when_resident_has_matching_allergy(
     orch: Orchestrator,
 ) -> None:

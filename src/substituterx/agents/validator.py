@@ -50,8 +50,12 @@ def _eval_constraint(
         return "supported", f"resident eGFR {P.egfr} ≥ {value}", str(P.egfr)
 
     if key == "age_threshold":
+        # Threshold triggered ⇒ resident IS in the sensitive group ⇒ the constraint
+        # surfaces a real concern (e.g. NTI sensitivity in elderly). Returning
+        # "contradicted" here lets the edge's aggregate status reflect that the
+        # threshold meaningfully fired. Sub-threshold ⇒ no concern ⇒ "supported".
         if P.age >= int(value):
-            return "supported", f"resident age {P.age} ≥ {value} (NTI sensitivity applies)", str(P.age)
+            return "contradicted", f"resident age {P.age} ≥ {value} (sensitivity threshold triggered)", str(P.age)
         return "supported", f"resident age {P.age} < {value} (threshold not triggered)", str(P.age)
 
     if key == "cross_reactivity":
@@ -62,9 +66,13 @@ def _eval_constraint(
         return "supported", "no allergy match", ""
 
     if key == "nti_class":
+        # Constraint asserts the subject drug is in an NTI class. If the seed agrees
+        # (drug.nti=True), the assertion is supported. If the seed disagrees (or the
+        # subject is unknown), we can't verify — return "unknown" rather than rubber-
+        # stamping the claim. The auditor uses `matched_literal` to ground narration.
         if drug_subject and drug_subject.nti:
             return "supported", f"drug is NTI class={value}", str(value)
-        return "supported", "NTI flag noted", ""
+        return "unknown", f"drug.nti flag not set; cannot confirm NTI class={value}", ""
 
     if key == "requires_prescriber":
         return ("contradicted" if str(value).lower() == "true" else "supported",

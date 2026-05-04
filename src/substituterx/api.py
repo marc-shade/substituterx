@@ -45,6 +45,17 @@ def residents():
     return {"residents": _state["residents"].all_ids()}
 
 
+@app.get("/audit/{run_id}")
+def audit(run_id: str):
+    """Return the JSON-Lines audit trail for a single run_id. Useful for operator
+    debugging: `curl /audit/<run_id>` returns every agent step recorded for that
+    run. Reads from `SUBSTITUTERX_AUDIT_LOG` (default `./audit_logs/audit.jsonl`).
+    """
+    if not run_id or len(run_id) > 64 or not run_id.replace("-", "").replace("_", "").isalnum():
+        raise HTTPException(status_code=400, detail="invalid run_id")
+    return {"run_id": run_id, "events": _state["audit"].read_run(run_id)}
+
+
 @app.post("/api/explain", response_model=ExplainResponse)
 def explain(req: ExplainRequest):
     try:

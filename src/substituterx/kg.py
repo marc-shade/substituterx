@@ -193,23 +193,33 @@ class KGStore:
         ).fetchall()
         return [r[0] for r in rows]
 
-    def allergy_contraindication_edges(self, rxcui: str) -> list[Edge]:
-        """All `contraindicated_with_allergy` edges anchored on this drug or any of
-        its ingredient-siblings.
+    # Safety-class edges whose `object` may be a non-drug string (an allergy name,
+    # an organ-function indicator like 'egfr', etc.). These are NOT retrieved by
+    # `edges_between(rxcui_a, rxcui_b)` because that query requires both endpoints
+    # to be drug RxCUIs. The orchestrator must look these up independently and
+    # evaluate the constraint_items against the resident's context vector.
+    _RESIDENT_ANCHORED_SAFETY_RELATIONS: tuple[str, ...] = (
+        "contraindicated_with_allergy",
+        "dose_adjust_renal",
+    )
 
-        These edges have shape (subject=drug_rxcui, object=allergy_string), so they
-        are NOT retrieved by `edges_between(rxcui_a, rxcui_b)` when both endpoints
-        are drug RxCUIs. The orchestrator must call this independently and evaluate
-        the `cross_reactivity` constraint_item against the resident's allergies.
+    def safety_edges_anchored_on(self, rxcui: str) -> list[Edge]:
+        """All resident-anchored safety edges for this drug or any ingredient-sibling.
+
+        See `_RESIDENT_ANCHORED_SAFETY_RELATIONS` for the relation list. Drug↔drug
+        safety relations (`nti_pair_unsafe`, `requires_prescriber_notice`) are
+        retrieved separately via `safety_edges_across_ingredients` / the validator's
+        `edges_between` query.
         """
         siblings = self.ingredient_siblings(rxcui)
         if not siblings:
             return []
-        placeholders = ",".join(["?"] * len(siblings))
+        placeholders_s = ",".join(["?"] * len(siblings))
+        placeholders_r = ",".join(["?"] * len(self._RESIDENT_ANCHORED_SAFETY_RELATIONS))
         rows = self.con.execute(
-            f"SELECT * FROM edges WHERE relation = 'contraindicated_with_allergy' "
-            f"AND subject IN ({placeholders})",
-            siblings,
+            f"SELECT * FROM edges WHERE relation IN ({placeholders_r}) "
+            f"AND subject IN ({placeholders_s})",
+            [*self._RESIDENT_ANCHORED_SAFETY_RELATIONS, *siblings],
         ).fetchall()
         return [self._row_to_edge(r) for r in rows]
 

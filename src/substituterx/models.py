@@ -79,7 +79,9 @@ class ReasonerClaims(BaseModel):
 # ---------- Validator (§6.3) ----------
 
 class Citation(BaseModel):
-    source: Literal["rxnorm", "orange_book", "openfda_recall", "primekg", "dailymed"]
+    source: Literal[
+        "rxnorm", "orange_book", "openfda_recall", "primekg", "dailymed", "ismp"
+    ]
     identifier: str
     url: str | None = None
 

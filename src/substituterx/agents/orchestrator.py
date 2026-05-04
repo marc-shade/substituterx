@@ -18,7 +18,7 @@ from ..residents import ResidentStore
 from .auditor import AuditorAgent
 from .extractor import ContextExtractorAgent
 from .reasoner import ReasonerAgent
-from .validator import ValidatorAgent
+from .validator import ValidatorAgent, _aggregate, _eval_constraint
 
 
 DATA_VERSIONS = {"rxnorm": "2026-04-curated", "orange_book": "2026-04-curated", "primekg": "v2.1-curated"}
@@ -158,47 +158,47 @@ class Orchestrator:
                     "hop_edges": [e.edge_id for e in hop_edges],
                 })
 
-        # ---- Allergy contraindication widening.
-        # Edges of relation `contraindicated_with_allergy` carry shape
-        # (subject=drug_rxcui, object=allergy_string), so they are *not* retrieved by
-        # the validator's `edges_between(a, b)` call. Without this pass, a sulfa-
-        # allergic resident receiving Bactrim would silently pass the equivalence
-        # check (same RxCUI on both sides → no edges → fast path / no_kg_evidence).
+        # ---- Resident-anchored safety widening.
+        # Edges whose `object` is a non-drug string (allergy name, organ-function
+        # marker like 'egfr', etc.) are NOT retrieved by `edges_between(a, b)`.
+        # We retrieve them per-anchor-drug here and evaluate each `constraint_item`
+        # against the resident context using the validator's own constraint
+        # evaluator — same logic, same canned reasoning. If the aggregate is
+        # contradicted, surface the edge as a contradicted EdgeVerdict so the
+        # red-flag path catches it.
         for drug_rxcui in [r for r in (bottle.rxcui, mar.rxcui) if r]:
-            for edge in self.kg.allergy_contraindication_edges(drug_rxcui):
+            drug_anchor = self.kg.get_drug(drug_rxcui)
+            for edge in self.kg.safety_edges_anchored_on(drug_rxcui):
                 if any(v.edge_id == edge.edge_id for v in validator_report.edge_verdicts):
                     continue
-                triggers: list[str] = []
+                evals: list[dict] = []
+                statuses: list[str] = []
                 for ci in edge.constraint_items:
-                    if ci.get("key") == "cross_reactivity":
-                        v = ci.get("value")
-                        triggers = list(v) if isinstance(v, list) else [str(v)]
-                hits = [
-                    a for a in ctx.allergies
-                    if a.lower() in [t.lower() for t in triggers]
-                ]
-                if not hits:
+                    key = ci.get("key", "")
+                    val = ci.get("value")
+                    status, reason, matched = _eval_constraint(
+                        key, val, drug_anchor, None, ctx,
+                    )
+                    evals.append({
+                        "key": key, "value": val, "status": status,
+                        "reasoning": reason, "matched_literal": matched,
+                    })
+                    statuses.append(status)
+                final_status = _aggregate(statuses)
+                if final_status != "contradicted":
                     continue
                 validator_report.edge_verdicts.append(EdgeVerdict(
                     edge_id=edge.edge_id, relation=edge.relation,
                     subject=edge.subject, object=edge.object,
                     status="contradicted",
-                    reasoning=(
-                        f"Resident allergy {hits} cross-reacts with "
-                        f"{triggers} contraindicated for {edge.subject}."
-                    ),
+                    reasoning="; ".join(e["reasoning"] for e in evals)
+                              or f"{edge.relation} contraindicated for resident",
                     citations=[Citation(**c) for c in edge.citations],
-                    constraint_items_evaluated=[
-                        {"key": ci.get("key"), "value": ci.get("value"),
-                         "status": "contradicted",
-                         "reasoning": f"resident allergies {ctx.allergies} ∩ {triggers} = {hits}",
-                         "matched_literal": ",".join(hits)}
-                        for ci in edge.constraint_items
-                    ],
+                    constraint_items_evaluated=evals,
                 ))
-                self.audit.emit(run_id, "orchestrator", "allergy_contraindication", {
+                self.audit.emit(run_id, "orchestrator", "safety_widening", {
                     "drug_rxcui": drug_rxcui, "edge_id": edge.edge_id,
-                    "resident_allergies": ctx.allergies, "matched": hits,
+                    "relation": edge.relation, "evals": evals,
                 })
 
         # ---- Auditor
@@ -251,7 +251,7 @@ class Orchestrator:
         # Hard guardrails: any contradicted nti_pair_unsafe or contraindicated_with_allergy
         # or requires_prescriber_notice → abstain.
         red_flag_relations = {"nti_pair_unsafe", "contraindicated_with_allergy",
-                              "requires_prescriber_notice"}
+                              "requires_prescriber_notice", "dose_adjust_renal"}
         red_flags = [v for v in active_verdicts
                      if v.relation in red_flag_relations and v.status == "contradicted"]
 
