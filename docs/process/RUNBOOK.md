@@ -115,7 +115,7 @@ uv pip install -e ".[dev,ui]"
 ```
 docs/
   research/    upstream papers, transcripts, fork outputs
-  spec/        SPEC.md, ARCHITECTURE.md, eval rubric
+  spec/        SPEC.md (architecture commitment + eval rubric)
   process/     PROCESS.md — how the agentic system built this
 src/           Python package (substituterx/)
 data/          KG ingest seed + synthetic resident profiles

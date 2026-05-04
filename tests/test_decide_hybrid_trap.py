@@ -132,3 +132,80 @@ def test_hybrid_trap_red_flag_overrides_generic(
     assert verdict == "abstain"
     assert "Call the pharmacy" in explanation
     assert abstain_reason  # populated with the red-flag reasons
+
+
+# ---- Same-RxCUI fast path (orchestrator.py:_decide) -----------------------
+
+def test_same_rxcui_fast_path_returns_equivalent(
+    orch: Orchestrator, resident_ctx: ResidentContextVector
+) -> None:
+    """Bottle and MAR resolving to the same RxCUI must return equivalent — no KG
+    edge links a→a, but the drugs are literally the same. Without this fast path,
+    the system would abstain `no_kg_evidence` on identical-drug labels (real bug
+    discovered during browser E2E)."""
+    claims = ReasonerClaims(equivalent=None, mechanism=Mechanism.UNKNOWN,
+                            structured_claims=[], confidence=0.0)
+    audit = AuditReport(leakage_detected=False)
+
+    verdict, mechanism, explanation, abstain_reason = orch._decide(
+        claims, [], audit, resident_ctx,
+        bottle_rxcui="617318", mar_rxcui="617318",
+    )
+
+    assert verdict == "equivalent"
+    assert mechanism == Mechanism.GENERIC
+    assert "617318" in explanation
+    assert "RxNorm concept" in explanation
+    assert abstain_reason is None
+
+
+def test_allergy_edge_fires_when_resident_has_matching_allergy(
+    orch: Orchestrator,
+) -> None:
+    """End-to-end allergy regression: bottle and MAR identical Bactrim labels →
+    same RxCUI → without the allergy widening, the same-RxCUI fast path would
+    return equivalent. Resident R-0004 has a sulfa allergy. The orchestrator must
+    fire edge E030 (contraindicated_with_allergy) and abstain.
+
+    This test covers the bug discovered when DANGER-006 stopped passing: edges
+    of shape (subject=drug_rxcui, object=allergy_string) are not retrieved by
+    `edges_between(a, a)`, so `kg.allergy_contraindication_edges` + the
+    orchestrator's allergy-widening pass are required for safety."""
+    from substituterx.models import BottleLabel, MAREntry
+
+    resp = orch.explain(
+        BottleLabel(label_text="Bactrim DS 800/160 mg"),
+        MAREntry(label_text="Bactrim DS 800/160 mg"),
+        "R-0004",
+    )
+
+    assert resp.verdict == "abstain"
+    edge_ids = {v.edge_id for v in resp.edge_verdicts}
+    assert "E030" in edge_ids, (
+        f"E030 (sulfa contraindication) must surface, got edges={edge_ids}"
+    )
+    e030 = next(v for v in resp.edge_verdicts if v.edge_id == "E030")
+    assert e030.status == "contradicted"
+    assert e030.relation == "contraindicated_with_allergy"
+    assert resp.abstain_reason and "contraindicated_with_allergy" in resp.abstain_reason
+
+
+def test_same_rxcui_fast_path_yields_to_red_flag(
+    orch: Orchestrator, resident_ctx: ResidentContextVector
+) -> None:
+    """Even when bottle and MAR have the same RxCUI, a red-flag verdict
+    (e.g. contraindicated_with_allergy) must still abstain — the resident's
+    safety constraint takes precedence over the equivalence shortcut."""
+    claims = ReasonerClaims(equivalent=None, mechanism=Mechanism.UNKNOWN,
+                            structured_claims=[], confidence=0.0)
+    audit = AuditReport(leakage_detected=False)
+    active = [_verdict("E-ALLERGY", "contraindicated_with_allergy", "contradicted")]
+
+    verdict, _mechanism, explanation, abstain_reason = orch._decide(
+        claims, active, audit, resident_ctx,
+        bottle_rxcui="617318", mar_rxcui="617318",
+    )
+
+    assert verdict == "abstain"
+    assert "Call the pharmacy" in explanation
+    assert abstain_reason

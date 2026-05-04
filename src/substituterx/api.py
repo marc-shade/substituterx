@@ -1,6 +1,7 @@
 """FastAPI app exposing the explain endpoint (SPEC §7)."""
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 
@@ -12,6 +13,7 @@ from .provider import get_provider
 from .residents import ResidentStore
 
 
+logger = logging.getLogger(__name__)
 _state: dict = {}
 
 
@@ -48,4 +50,11 @@ def explain(req: ExplainRequest):
     try:
         return _state["orchestrator"].explain(req.bottle, req.mar, req.resident_id)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        # Don't echo internal exception text back to the client — could leak schema,
+        # paths, or stack details. Log it server-side and return a generic 500 so
+        # operators can correlate via the audit log run_id.
+        logger.exception("explain pipeline failure")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal pipeline failure — see server logs.",
+        ) from exc

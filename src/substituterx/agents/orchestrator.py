@@ -11,8 +11,8 @@ import time
 from ..audit_log import AuditLog
 from ..kg import KGStore
 from ..models import (
-    BottleLabel, MAREntry, Claim, ExplainResponse, Mechanism, AuditReport, EdgeVerdict,
-    new_run_id,
+    BottleLabel, MAREntry, Claim, Citation, ExplainResponse, Mechanism, AuditReport,
+    EdgeVerdict, new_run_id,
 )
 from ..residents import ResidentStore
 from .auditor import AuditorAgent
@@ -127,7 +127,6 @@ class Orchestrator:
         if bottle.rxcui and mar.rxcui:
             hop_edges = self.kg.safety_edges_across_ingredients(bottle.rxcui, mar.rxcui)
             if hop_edges:
-                from ..models import EdgeVerdict, Citation
                 bottle_drug = self.kg.get_drug(bottle.rxcui)
                 mar_drug = self.kg.get_drug(mar.rxcui)
                 bottle_ing = bottle_drug.ingredient_in if bottle_drug else "unknown"
@@ -141,7 +140,7 @@ class Orchestrator:
                         f"{edge.relation} relation — "
                         + "; ".join(f"{ci.get('key')}={ci.get('value')}" for ci in edge.constraint_items)
                     )
-                    validator_report.edge_verdicts.append(EdgeVerdict(
+                    validator_report.edge_verdicts.append(EdgeVerdict(  # noqa: F821 — module-level import
                         edge_id=edge.edge_id, relation=edge.relation,
                         subject=edge.subject, object=edge.object,
                         status="contradicted",
@@ -157,6 +156,49 @@ class Orchestrator:
                 self.audit.emit(run_id, "orchestrator", "ingredient_class_hop", {
                     "bottle_rxcui": bottle.rxcui, "mar_rxcui": mar.rxcui,
                     "hop_edges": [e.edge_id for e in hop_edges],
+                })
+
+        # ---- Allergy contraindication widening.
+        # Edges of relation `contraindicated_with_allergy` carry shape
+        # (subject=drug_rxcui, object=allergy_string), so they are *not* retrieved by
+        # the validator's `edges_between(a, b)` call. Without this pass, a sulfa-
+        # allergic resident receiving Bactrim would silently pass the equivalence
+        # check (same RxCUI on both sides → no edges → fast path / no_kg_evidence).
+        for drug_rxcui in [r for r in (bottle.rxcui, mar.rxcui) if r]:
+            for edge in self.kg.allergy_contraindication_edges(drug_rxcui):
+                if any(v.edge_id == edge.edge_id for v in validator_report.edge_verdicts):
+                    continue
+                triggers: list[str] = []
+                for ci in edge.constraint_items:
+                    if ci.get("key") == "cross_reactivity":
+                        v = ci.get("value")
+                        triggers = list(v) if isinstance(v, list) else [str(v)]
+                hits = [
+                    a for a in ctx.allergies
+                    if a.lower() in [t.lower() for t in triggers]
+                ]
+                if not hits:
+                    continue
+                validator_report.edge_verdicts.append(EdgeVerdict(
+                    edge_id=edge.edge_id, relation=edge.relation,
+                    subject=edge.subject, object=edge.object,
+                    status="contradicted",
+                    reasoning=(
+                        f"Resident allergy {hits} cross-reacts with "
+                        f"{triggers} contraindicated for {edge.subject}."
+                    ),
+                    citations=[Citation(**c) for c in edge.citations],
+                    constraint_items_evaluated=[
+                        {"key": ci.get("key"), "value": ci.get("value"),
+                         "status": "contradicted",
+                         "reasoning": f"resident allergies {ctx.allergies} ∩ {triggers} = {hits}",
+                         "matched_literal": ",".join(hits)}
+                        for ci in edge.constraint_items
+                    ],
+                ))
+                self.audit.emit(run_id, "orchestrator", "allergy_contraindication", {
+                    "drug_rxcui": drug_rxcui, "edge_id": edge.edge_id,
+                    "resident_allergies": ctx.allergies, "matched": hits,
                 })
 
         # ---- Auditor
@@ -178,6 +220,7 @@ class Orchestrator:
         # ---- Decide
         verdict, mechanism, explanation, abstain_reason = self._decide(
             claims, active_verdicts, audit_report, ctx,
+            bottle_rxcui=bottle.rxcui, mar_rxcui=mar.rxcui,
         )
 
         latency_ms = int((time.time() - t0) * 1000)
@@ -201,7 +244,10 @@ class Orchestrator:
 
     # ---------- decision logic (SPEC §6.5) ----------
 
-    def _decide(self, claims, active_verdicts: list[EdgeVerdict], audit: AuditReport, ctx):
+    def _decide(
+        self, claims, active_verdicts: list[EdgeVerdict], audit: AuditReport, ctx,
+        *, bottle_rxcui: str | None = None, mar_rxcui: str | None = None,
+    ):
         # Hard guardrails: any contradicted nti_pair_unsafe or contraindicated_with_allergy
         # or requires_prescriber_notice → abstain.
         red_flag_relations = {"nti_pair_unsafe", "contraindicated_with_allergy",
@@ -222,6 +268,16 @@ class Orchestrator:
             return "abstain", Mechanism.UNKNOWN, \
                    "More than 30% of validator claims were downgraded for parametric leakage. **Call the pharmacy.**", \
                    "auditor_downgrade_threshold_exceeded"
+
+        # Same-RxNorm-concept fast path. If bottle and MAR resolve to identical RxCUIs
+        # and no contradicted edge fired, they are literally the same drug — no KG edge
+        # is needed to assert equivalence. Red-flag/auditor-downgrade paths above already
+        # took precedence, so this can only fire on a clean run.
+        if bottle_rxcui and mar_rxcui and bottle_rxcui == mar_rxcui \
+                and not any(v.status == "contradicted" for v in active_verdicts):
+            return "equivalent", Mechanism.GENERIC, \
+                   f"Bottle and MAR resolve to the same RxNorm concept (RxCUI {bottle_rxcui}).", \
+                   None
 
         # No active edges at all → can't claim equivalence
         if not active_verdicts:

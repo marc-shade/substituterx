@@ -193,6 +193,26 @@ class KGStore:
         ).fetchall()
         return [r[0] for r in rows]
 
+    def allergy_contraindication_edges(self, rxcui: str) -> list[Edge]:
+        """All `contraindicated_with_allergy` edges anchored on this drug or any of
+        its ingredient-siblings.
+
+        These edges have shape (subject=drug_rxcui, object=allergy_string), so they
+        are NOT retrieved by `edges_between(rxcui_a, rxcui_b)` when both endpoints
+        are drug RxCUIs. The orchestrator must call this independently and evaluate
+        the `cross_reactivity` constraint_item against the resident's allergies.
+        """
+        siblings = self.ingredient_siblings(rxcui)
+        if not siblings:
+            return []
+        placeholders = ",".join(["?"] * len(siblings))
+        rows = self.con.execute(
+            f"SELECT * FROM edges WHERE relation = 'contraindicated_with_allergy' "
+            f"AND subject IN ({placeholders})",
+            siblings,
+        ).fetchall()
+        return [self._row_to_edge(r) for r in rows]
+
     def safety_edges_across_ingredients(
         self, rxcui_a: str, rxcui_b: str,
         relations: tuple[str, ...] = (

@@ -52,15 +52,31 @@ with st.sidebar:
         st.markdown(f"- **{role}** &nbsp; `{model}`")
     st.caption("Per-agent overrides via `SUBSTITUTERX_MODEL_<ROLE>` env vars.")
 
+# Query-param deeplinking. Lets the operator share a URL that pre-fills the form
+# (`?bottle=...&mar=...&resident=R-0004`) and lets headless test harnesses commit
+# values that bypass the BaseWeb selectbox's React-state mismatch with raw DOM writes.
+qp = st.query_params
+_resident_options = residents.all_ids()
+_qp_resident = qp.get("resident", "")
+_default_resident_idx = (
+    _resident_options.index(_qp_resident) if _qp_resident in _resident_options else 0
+)
+
 with st.form("reconciliation"):
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("📦 Bottle (delivered)")
-        bottle_text = st.text_input("Label text on the bottle", value="metoprolol succinate ER 50 mg")
+        bottle_text = st.text_input(
+            "Label text on the bottle",
+            value=qp.get("bottle", "metoprolol succinate ER 50 mg"),
+        )
     with col2:
         st.subheader("📋 MAR (orders)")
-        mar_text = st.text_input("MAR entry", value="Toprol XL 50 mg")
-    resident_id = st.selectbox("Resident", residents.all_ids())
+        mar_text = st.text_input(
+            "MAR entry",
+            value=qp.get("mar", "Toprol XL 50 mg"),
+        )
+    resident_id = st.selectbox("Resident", _resident_options, index=_default_resident_idx)
     submitted = st.form_submit_button("Reconcile", type="primary")
 
 if submitted:
