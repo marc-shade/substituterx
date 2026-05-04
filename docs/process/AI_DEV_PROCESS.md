@@ -196,6 +196,7 @@ and locking the fix behind a regression test.
 | 4 | `d804e1c` | 3 | **Bug 14**: a paranoid or miscalibrated auditor could downgrade my deterministic safety-widening edges (E030, E050) and silently bypass the red-flag check. The orchestrator's filter only had a carve-out for ingredient-class hop edges. Reproduced with a `_DowngradeOnly` stub auditor and locked behind a regression test. |
 | 5 | `7d7e982` | 3 | **Bug 17**: leakage cases (LEAK-001) didn't enforce zero edges. A system that fabricated a parametric edge from training data and abstained anyway would still pass — the exact failure the leakage category exists to detect. Strengthened the gate to require zero `edge_verdicts` for `category=='leakage'`. |
 | 6 | `85a2678` | 2 | **Bug 21**: the validator's fallthrough for un-evaluated constraint keys returned `"no deterministic evaluator for key=X"` as the *user-facing* reasoning. Two problems: developer-internal message leaking to operators/caregivers, and the actual informational content (`"warfarin requires INR; DOACs do not"`) was thrown away. Fixed so informational keys surface their value content; the auditor's regex grounding still works. |
+| 7 | (this commit) | 1 | **Bug 22**: `docs/process/00_apparatus_orchestrator_prompts.md` opened with *"Captured verbatim so a reviewing engineer can reproduce the workflow"* but four `[prompt verbatim]` placeholders were never circled back on — a reviewer caught it and asked. The verbatim prompts only existed in the original Claude Code session transcript and were not preserved. Doc rewritten with reconstructed prompts (clearly labeled **NOT VERBATIM**) and pointers to the actual fork outputs in `docs/research/0[1-4]_*.md` as the source of truth for what was produced. The "captured verbatim" frame was itself theater; the rewrite calls that out explicitly at the bottom of the doc. |
 
 Each round was **always** followed by:
 1. Re-run all unit tests (`pytest tests/`).
@@ -252,6 +253,17 @@ inside-out development: the message was written for the developer, not
 the operator, and never got rewritten as the surface stabilized.
 Detection: read the actual rendered narration end-to-end, not just the
 status code.
+
+### "Captured verbatim" placeholder — documentation theater
+Bug 22: a process doc opened with "Captured verbatim so a reviewing
+engineer can reproduce the workflow" but had `[prompt verbatim]`
+placeholders that were never circled back on. The frame promised
+falsifiable evidence; the body delivered placeholders. Detection:
+when a doc claims a strong evidentiary property ("verbatim",
+"complete transcript", "captured at the time"), audit the body
+against that claim before publishing. A reviewer caught this one in
+post — exactly the discipline the no-theater rule is supposed to
+produce, applied recursively to the documentation.
 
 ---
 
